@@ -31,7 +31,7 @@ th{color:var(--mu);font-weight:600}
 .Packed{color:var(--wa)}.Scanning{color:var(--ac)}.Scanned{color:var(--ok)}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:end}.row>*{flex:1;min-width:140px}.row>button{flex:0 0 auto}
 .msg{color:var(--er);font-size:13px;min-height:18px}
-#gate{max-width:460px;margin:12vh auto;text-align:center}
+#gate{max-width:460px;margin:10vh auto;text-align:center}
 .hide{display:none!important}
 
 .big{flex:1;padding:18px;font-size:17px;font-weight:600}
@@ -40,6 +40,7 @@ th{color:var(--mu);font-weight:600}
 .ok{color:var(--ok);font-size:14px;font-weight:600}.warn{color:var(--wa);font-size:14px}
 .tag.Mode{color:var(--ac)}
 .chip{display:inline-block;background:var(--bg);border:1px solid var(--bd);border-radius:99px;padding:2px 10px;margin:6px 6px 0 0;font-size:13px}.chip b{cursor:pointer;margin-left:7px;color:var(--er)}
+.linkBtn{background:none;border:0;color:var(--ac);padding:4px 0;text-decoration:underline;font-size:13px;cursor:pointer}
 </style>
 </head>
 <body>
@@ -49,11 +50,28 @@ th{color:var(--mu);font-weight:600}
   <h1>Answer Script Bundles</h1>
   <p class="sub" id="gateMsg">Signing you in…</p>
   <div id="codeBox" class="hide" style="text-align:left">
-    <div id="gGoogleBox" class="hide" style="text-align:center;margin-bottom:12px"><div id="gGoogle" style="display:inline-block"></div><div class="sub" style="margin-top:8px">or use your e-mail</div></div>
-    <label>Your e-mail address (the one the admin added)</label>
-    <input id="gMail" type="email" autocomplete="email" placeholder="name@gmail.com">
-    <p><button class="p" id="gSend">Send me a code</button> <button id="gHave">I already have a code</button></p>
-    <div id="gCodeRow" class="hide"><label>6-digit code from your e-mail</label><input id="gCode" inputmode="numeric" maxlength="6" autocomplete="one-time-code"><p><button class="p" id="gVerify">Sign in</button></p></div>
+    <div id="gGoogleBox" class="hide" style="text-align:center;margin-bottom:12px"><div id="gGoogle" style="display:inline-block"></div><div class="sub" style="margin-top:8px">or use your e-mail / mobile</div></div>
+    
+    <!-- OPTION 1: EMAIL SIGN-IN -->
+    <div id="emailLoginSec">
+      <label>Your e-mail address (registered by admin)</label>
+      <input id="gMail" type="email" autocomplete="email" placeholder="name@svce.edu.in or name@gmail.com">
+      <p style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="p" id="gSend">Sign in</button>
+        <button id="gHave" class="hide">I already have a code</button>
+      </p>
+      <div id="gCodeRow" class="hide"><label>6-digit code</label><input id="gCode" inputmode="numeric" maxlength="6" autocomplete="one-time-code"><p><button class="p" id="gVerify">Verify Code</button></p></div>
+      <p style="margin:6px 0 0"><button type="button" class="linkBtn" id="toMobileBtn">Email not responding? Verify using Mobile Number instead</button></p>
+    </div>
+
+    <!-- OPTION 2: MOBILE NUMBER FALLBACK -->
+    <div id="mobileLoginSec" class="hide">
+      <label>Registered 10-digit Mobile Number</label>
+      <input id="gMobile" type="tel" inputmode="numeric" maxlength="10" placeholder="e.g. 9876543210">
+      <p><button class="p" id="gMobileBtn">Verify &amp; Sign in with Mobile</button></p>
+      <p style="margin:6px 0 0"><button type="button" class="linkBtn" id="toEmailBtn">&larr; Back to E-mail Sign-in</button></p>
+    </div>
+
     <p class="msg" id="gErr"></p>
   </div>
   <p><button id="gAcc">Use a different Google account</button></p>
@@ -106,27 +124,31 @@ th{color:var(--mu);font-weight:600}
   <div id="adminPanel" class="card hide">
     <h2>Admin &ndash; who can use this</h2>
     <p class="sub">Fixed admins (set in the script): <span id="fixedAdmins"></span></p>
-    <div class="tw"><table style="min-width:700px"><thead><tr><th>E-mail</th><th>Dept</th><th>Designation</th><th>Admin</th><th>Packing</th><th>Scanning</th><th>View all</th><th></th></tr></thead><tbody id="ub"></tbody></table></div>
+    <div class="tw"><table style="min-width:820px"><thead><tr><th>E-mail</th><th>Mobile (10-digit)</th><th>Dept</th><th>Designation</th><th>Admin</th><th>Packing</th><th>Scanning</th><th>View all</th><th></th></tr></thead><tbody id="ub"></tbody></table></div>
     <p class="sub" id="uEmpty">No other people added yet.</p>
     <h2 style="margin-top:14px">Upload the access list from Excel</h2>
-    <p class="sub">Columns: Email &nbsp;|&nbsp; Dept &nbsp;|&nbsp; Designation &nbsp;|&nbsp; Admin &nbsp;|&nbsp; Packing &nbsp;|&nbsp; Scanning &nbsp;|&nbsp; View all &nbsp;(type Yes where access is allowed). Use the template, or click Export to start from the current list.</p>
+    <p class="sub">Columns: Email &nbsp;|&nbsp; Mobile &nbsp;|&nbsp; Dept &nbsp;|&nbsp; Designation &nbsp;|&nbsp; Admin &nbsp;|&nbsp; Packing &nbsp;|&nbsp; Scanning &nbsp;|&nbsp; View all &nbsp;(type Yes where access is allowed). Use Export to start from the current list.</p>
     <p style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><input type="file" id="uFile" accept=".xlsx,.xls,.csv" style="width:auto;max-width:100%"><label style="display:inline-flex;gap:5px;align-items:center;margin:0"><input type="checkbox" id="uRepl" checked style="width:auto"> Replace the whole list</label><button class="p" id="uImp">Import</button><button id="uExp">Export current list</button></p>
     <p class="sub" id="uImpMsg"></p>
     <h2 style="margin-top:14px">Or add one person</h2>
-    <div class="row"><div style="flex:2"><label>E-mail</label><input id="uEmail" placeholder="name@svce.edu.in"></div><div><label>Dept</label><input id="uDept" placeholder="e.g. IT"></div><div><label>Designation</label><input id="uDesig" placeholder="e.g. Assistant Professor"></div></div>
+    <div class="row">
+      <div style="flex:2"><label>E-mail</label><input id="uEmail" placeholder="name@svce.edu.in"></div>
+      <div><label>Mobile (10-digit fallback)</label><input id="uMobile" type="tel" maxlength="10" placeholder="9876543210"></div>
+      <div><label>Dept</label><input id="uDept" placeholder="e.g. IT"></div>
+      <div><label>Designation</label><input id="uDesig" placeholder="e.g. Assistant Professor"></div>
+    </div>
     <p style="display:flex;gap:16px;flex-wrap:wrap;align-items:center"><label style="display:inline-flex;gap:5px;align-items:center;margin:0"><input type="checkbox" id="uPack" style="width:auto"> Packing</label><label style="display:inline-flex;gap:5px;align-items:center;margin:0"><input type="checkbox" id="uScan" style="width:auto"> Scanning</label><label style="display:inline-flex;gap:5px;align-items:center;margin:0"><input type="checkbox" id="uView" style="width:auto"> View all information</label><label style="display:inline-flex;gap:5px;align-items:center;margin:0"><input type="checkbox" id="uAdmin" style="width:auto"> Admin</label></p>
     <p><button class="p" id="uAdd">Add person</button> <span class="sub" id="uMsg"></span></p>
 
     <h2 style="margin-top:18px">Sign-in method</h2>
-    <p class="sub">How staff get in. <b>Code</b>: a 6-digit code proves the e-mail is really theirs (safest). <b>E-mail only</b>: an address you added is let in as soon as it is typed; anyone else sees "Contact your admin". Admin accounts always use a code, and every e-mail-only sign-in is written to the Changes sheet.</p>
-    <p><select id="sgSel" style="width:auto"><option value="code">Code (safest)</option><option value="email">E-mail only (quick)</option></select> <span class="sub" id="sgMsg"></span></p>
-    <h2 style="margin-top:18px">Check sign-in e-mail</h2>
-    <p class="sub">If someone says the sign-in code never arrives, type their address here. It tells you whether they are on the list and sends them a test e-mail.</p>
+    <p class="sub"><b>Direct (E-mail / Mobile)</b>: registered staff sign in immediately using their e-mail or 10-digit mobile number without waiting for OTP emails (recommended). <b>Code</b>: sends a 6-digit OTP to e-mail.</p>
+    <p><select id="sgSel" style="width:auto"><option value="email">Direct (E-mail / Mobile - No OTP)</option><option value="code">Code (6-digit OTP via E-mail)</option></select> <span class="sub" id="sgMsg"></span></p>
+    <h2 style="margin-top:18px">Check sign-in e-mail / generate manual code</h2>
     <div class="row"><input id="mcIn" placeholder="name@gmail.com"><button class="p" id="mcGo">Check &amp; send test</button></div>
-    <p><button id="mcCode">Show a sign-in code for this address</button></p>
+    <p><button id="mcCode">Show a 10-min code for this address</button></p>
     <p class="sub" id="mcOut"></p>
     <h2 style="margin-top:18px">Label register &ndash; upload from the label generator</h2>
-    <p class="sub">In the label tool click <b>Export Bundle Register (CSV)</b>, then upload that file here (CSV or Excel). The QR on each label holds only an ID; this register tells the app which bundle the ID belongs to. Every upload is added to the register: new IDs are added, IDs already there are updated, and nothing is removed. Use <b>Download register</b> to keep a copy for future reference.</p>
+    <p class="sub">In the label tool click <b>Export Bundle Register (CSV)</b>, then upload that file here (CSV or Excel).</p>
     <p style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><input type="file" id="rFile" accept=".xlsx,.xls,.csv" style="width:auto;max-width:100%"><button class="p" id="rUp">Upload register</button><button id="rDl">Download register (CSV)</button><button id="rClr">Clear register</button></p>
     <p class="sub" id="rMsg"></p>
   </div>
@@ -168,11 +190,10 @@ function gate(m){$('gateMsg').textContent=m}
 function esc(s){var d=document.createElement('div');d.textContent=s==null?'':String(s);return d.innerHTML.replace(/"/g,'&quot;')}
 function fmt(t){return t?new Date(t).toLocaleString([],{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):''}
 function idOf(b){return 'b'+String(b).replace(/[^A-Za-z0-9]/g,'')}
-// ===== talking to the script (server) =====
 function busyOff(){inflight--;if(inflight<=0){inflight=0;$('busy').classList.add('hide')}}
-// Hosted mode (page lives on GitHub Pages etc.): talk to the Apps Script web app over HTTPS instead of google.script.run
+
 function callHttp(fn,a,quiet){
-  var direct=(fn==='requestCode'||fn==='verifyCode'||fn==='logout'||fn==='quickSignIn'||fn==='googleSignIn'),fin=function(){if(!quiet)busyOff()};
+  var direct=(fn==='requestCode'||fn==='verifyCode'||fn==='logout'||fn==='quickSignIn'||fn==='mobileSignIn'||fn==='googleSignIn'),fin=function(){if(!quiet)busyOff()};
   return fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},redirect:'follow',body:JSON.stringify({fn:fn,token:direct?'':TOKEN,args:a})})
     .then(function(r){return r.text()},function(){throw new Error('Could not reach the server. Check the internet connection and try again.')})
     .then(function(t){
@@ -188,7 +209,7 @@ function call(fn){
     var gr=google.script.run
       .withSuccessHandler(function(v){if(!quiet)busyOff();res(v)})
       .withFailureHandler(function(e){if(!quiet)busyOff();rej(new Error(String(e&&e.message?e.message:e).replace(/^(Error|Exception): /,'')))});
-    var direct=(fn==='requestCode'||fn==='verifyCode'||fn==='logout'||fn==='quickSignIn'||fn==='googleSignIn');
+    var direct=(fn==='requestCode'||fn==='verifyCode'||fn==='logout'||fn==='quickSignIn'||fn==='mobileSignIn'||fn==='googleSignIn');
     if(typeof gr[direct?fn:'api']!=='function'){if(!quiet)busyOff();rej(new Error('The server code (Code.gs) is out of date ("'+fn+'"). Paste the new Code.gs, save, then Deploy > Manage deployments > New version.'));return}
     if(direct)gr[fn].apply(gr,a);else gr.api(TOKEN,fn,a);
   });
@@ -207,7 +228,6 @@ function normDate(x){
   if(m=x.match(/^(\d{4})(\d{2})(\d{2})$/)){if(+m[2]>=1&&+m[2]<=12&&+m[3]>=1&&+m[3]<=31)return m[1]+'-'+m[2]+'-'+m[3]}
   return '';
 }
-
 function toDMY(x){var d=normDate(x);return d?d.slice(8,10)+'-'+d.slice(5,7)+'-'+d.slice(0,4):''}
 var KEYMAP={exam:'exam',examination:'exam',reg:'reg',regulation:'reg',branch:'branch',dept:'branch',department:'branch',subject:'subject',subjectname:'subject',code:'code',subjectcode:'code',scode:'code',date:'date',examdate:'date',bundle:'bundle',bundleno:'bundle',bno:'bundle',studentsattendedstrength:'strength',strength:'strength',scripts:'count',noofscripts:'count',scriptsinthebundle:'count',count:'count'};
 function fixField(o,k,v){v=String(v==null?'':v).trim();if(!v)return;
@@ -221,11 +241,11 @@ function parseLabel(raw){
     if(lines.length<2)lines=raw.split(/\s*[|;]\s*/);
     lines.forEach(function(t){var m=t.match(/^\s*([^:=]+?)\s*[:=]\s*(.+?)\s*$/);if(!m)return;var f=KEYMAP[m[1].toLowerCase().replace(/[^a-z]/g,'')];if(f){fixField(o,f,m[2]);kv++}});
   }
-  if(!kv&&/^SVCE\|/i.test(raw)){ // compact PDF417: SVCE|exam|reg|branch|subject|code|date|bundle|strength|scripts
+  if(!kv&&/^SVCE\|/i.test(raw)){
     var pp=raw.split('|'),ky=[null,'exam','reg','branch','subject','code','date','bundle','strength','count'];
     for(var pi=1;pi<ky.length;pi++){if(pp[pi]!=null){fixField(o,ky[pi],pp[pi]);kv++}}
   }
-  if(!kv){ // Code 128: subject code + date
+  if(!kv){
     var re=/\d{4}[-\/.]\d{1,2}[-\/.]\d{1,2}|\d{1,2}[-\/.](?:\d{1,2}|[A-Za-z]{3})[-\/.]\d{4}|\b\d{8}\b/;
     var dm=raw.match(re),rest=raw;
     if(dm){fixField(o,'date',dm[0]);rest=raw.replace(dm[0],' ')}
@@ -245,8 +265,8 @@ function stopCam(){
 function closeScan(){cam.multi=false;cam.linear=false;stopCam();$('scanBox').classList.add('hide')}
 function gotCode(t,f){
   var cb=cam.cb;t=String(t||'').trim();
-  if(cam.linear&&/qr|pdf.?417|matrix|aztec/i.test(String(f||'')))return; // booklet QR is ignored: only the straight barcode (Sl.No.) counts
-  if(cam.multi){ // keep the camera open for the next script; ignore the same code seen again straight away
+  if(cam.linear&&/qr|pdf.?417|matrix|aztec/i.test(String(f||'')))return;
+  if(cam.multi){
     if(!t)return;var n=Date.now();if(t===cam.last&&n-cam.lastAt<2500)return;cam.last=t;cam.lastAt=n;
     try{if(navigator.vibrate)navigator.vibrate(60)}catch(e){}$('scanTxt').value='';if(cb)cb(t,f);return}
   closeScan();if(t&&cb)cb(t,f)}
@@ -275,7 +295,7 @@ $('scanTxt').onkeydown=function(e){if(e.key==='Enter'&&(cam.multi||!/SVCE|:/.tes
 $('scanTxt').oninput=function(){var v=$('scanTxt').value;clearTimeout(scanTimer);if(/\n/.test(v)||/^\s*SVCE/.test(v))scanTimer=setTimeout(function(){gotCode($('scanTxt').value)},700)};
 $('scanCancel').onclick=closeScan;
 
-// ===== change tracking (what the label / record said vs what it was changed to) =====
+// ===== change tracking =====
 var NAMES={bundle:'Bundle no.',date:'Date',code:'Subject code',subject:'Subject name',branch:'Branch',reg:'Regulation',count:'Scripts in bundle',strength:'Students attended',exam:'Examination'};
 var CMP=['bundle','date','code','subject','branch','reg','count','strength','exam'];
 var lastBasis='Label';
@@ -286,7 +306,6 @@ function pickCmp(r){var o={};CMP.forEach(function(k){if(r[k]!=null)o[k]=r[k]});r
 function logChanges(stage,rec,list,basis){
   call('logChanges',list.map(function(c){return{bundle:rec.bundle,code:rec.code,stage:stage,field:c.name,from:c.from,to:c.to,basis:basis}})).catch(function(){});
 }
-// ===== label ID (secure QR) -> details from the Label Register =====
 function labelIdFrom(t){var m=String(t||'').match(/SVCE-[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}/i);return m?m[0].toUpperCase():''}
 async function resolveLabel(t){
   var id=labelIdFrom(t);
@@ -294,6 +313,7 @@ async function resolveLabel(t){
   var o=parseLabel(t);if(!Object.keys(o).length)o.bundle=t;return{o:o,id:''};
 }
 var pendingLabel=INITIAL_ID||'';
+
 // ===== packing =====
 var mpList=[];
 function renderMp(){$('pMpList').innerHTML=mpList.map(function(x,i){return'<span class="chip">'+esc(x)+'<b data-i="'+i+'">&times;</b></span>'}).join('')+(mpList.length?'<div class="sub">'+mpList.length+' MP script(s)</div>':'')}
@@ -306,7 +326,7 @@ function getForm(){var f={};FIELDS.forEach(function(a){var v=$(a[1]).value.trim(
 function fillForm(o){FIELDS.forEach(function(a){$(a[1]).value=o[a[0]]==null?'':o[a[0]]});mpList=o.mpRolls?String(o.mpRolls).split(/[\s,;]+/).filter(Boolean):[];$('pMpIn').value='';renderMp()}
 function pmsg(t,c){var m=$('pMsg');m.textContent=t;m.className=c||'sub'}
 $('pClear').onclick=function(){fillForm({});lastLabel=null;pmsg('');sList=[];renderScripts()};
-// ----- scripts inside the bundle -----
+
 var sList=[];
 function applyWay(){var on=!!$('pWayA').checked;$('pScriptsBox').classList.toggle('hide',!on);try{localStorage.setItem('svceWayA',on?'1':'0')}catch(e){}}
 try{$('pWayA').checked=localStorage.getItem('svceWayA')==='1'}catch(e){}
@@ -318,7 +338,6 @@ function renderScripts(){
   if(sList.length)$('pCount').value=sList.length;
   renderBrPick();renderExpect();
 }
-// branches named on the label / form -> one-tap buttons; plus a count per branch
 function renderExpect(){
   var e=$('pExpect'),want=lastLabel&&+lastLabel.count>0?+lastLabel.count:0,n=sList.length;
   if(!want||!n){e.textContent='';e.className='';return}
@@ -367,7 +386,7 @@ $('pScriptList').onclick=async function(e){
 $('pBundle').onchange=loadScripts;
 $('pBranch').onchange=function(){if(!$('pScriptBr').value.trim()&&labelBranches().length===1)$('pScriptBr').value=labelBranches()[0];renderBrPick()};
 $('pScriptBr').oninput=function(){$('scanBr').value=this.value;renderBrPick()};
-// ----- find which bundle a script is in -----
+
 async function findScript(t){
   t=String(t||'').trim();if(!t)return;var o=$('fsOut');o.className='sub';o.textContent='Looking…';
   try{
@@ -411,12 +430,6 @@ $('pSave').onclick=async function(){
 };
 
 // ===== scanning =====
-function match(o){
-  var lc=function(x){return String(x==null?'':x).toLowerCase()};
-  if(o.bundle)return rows.filter(function(r){return String(r.bundle)===String(o.bundle)});
-  if(o.code)return rows.filter(function(r){return lc(r.code)===lc(o.code)&&(!o.date||r.date===o.date)});
-  return[];
-}
 function smsg(t){$('sMsg').textContent=t}
 function startScan(id){return saveRec(id,{status:'Scanning'})}
 var SF=[['code','sCode'],['subject','sSubject'],['branch','sBranch'],['reg','sReg'],['date','sDate'],['count','sCountL',1],['strength','sStrength',1],['exam','sExam']];
@@ -443,7 +456,6 @@ function showCard(id){
   $('sCard').innerHTML=h;
   vList=[];if(r.status==='Scanning')loadV();
 }
-// ----- script check while scanning -----
 var vList=[],vSeq=0;
 function vmsg(t,c){var m=$('vMsg');if(m){m.textContent=t;m.className=c||'sub'}}
 function curBundleNo(){var r=rows.find(function(x){return x._id===curId});return r?r.bundle:''}
@@ -474,7 +486,6 @@ async function onVCode(t){
   t=String(t||'').trim();if(!t||!$('vIn'))return;
   if(labelIdFrom(t)||/^SVCE\|/i.test(t)){vmsg('That is a bundle label, not a script.','warn');return}
   var b=curBundleNo(),br=$('vBr').value.trim(),key=t.toUpperCase().replace(/\s+/g,'');
-  var rec=rows.find(function(x){return x._id===curId});
   if(!vList.some(function(x){return x.code===key})&&!br&&vBranches().length>1){vmsg('This bundle has several branches - tap the branch first, then scan.','warn');return}
   try{
     var r=await call('scriptsVerify',b,t,br,false);
@@ -489,9 +500,8 @@ async function onVCode(t){
   }catch(e){vmsg(e.message,'warn')}
 }
 $('sCard').onkeydown=function(e){if(e.target.id==='vIn'&&e.key==='Enter'){e.preventDefault();var v=e.target.value;e.target.value='';onVCode(v)}};
-// ----- check the files saved by the document scanner (file name = script barcode) -----
 function fileKey(name){var b=String(name||'').replace(/^.*[\\\/]/,'').replace(/\.[A-Za-z0-9]{1,5}$/,'');return b.toUpperCase().replace(/\s+/g,'')}
-function matchFile(name){ // exact barcode, or barcode followed by a separator (e.g. 1234567_001)
+function matchFile(name){
   var k=fileKey(name),hit=null;if(!k)return {key:'',code:''};
   vList.forEach(function(x){if(k===x.code||(k.indexOf(x.code)===0&&/^[^A-Z0-9]/.test(k.slice(x.code.length))))hit=x.code});
   return {key:k,code:hit||''};
@@ -510,7 +520,7 @@ async function checkFiles(files){
     var left=vList.filter(function(x){return!x.verified}).map(function(x){return x.code});
     var msg=r.ok.length+' matched'+(r.again.length?', '+r.again.length+' already ticked':'')+'. '+(left.length?left.length+' still missing.':'None missing.');
     if(r.unknown.length){
-      var mine=r.unknown.filter(function(u){return!u.bundle}),other=r.unknown.filter(function(u){return u.bundle});
+      var mine=r.unknown.filter(function(u){return!u.bundle});
       msg+=' '+r.unknown.length+' file(s) are not in this bundle: '+r.unknown.slice(0,8).map(function(u){return u.code+(u.bundle?' (bundle '+u.bundle+')':'')}).join(', ')+(r.unknown.length>8?' …':'')+'.';
       vmsg(msg,'warn');
       if(mine.length&&confirm(mine.length+' scanned file(s) are not in this bundle:\n'+mine.slice(0,10).map(function(u){return u.code}).join(', ')+(mine.length>10?' …':'')+'\n\nAdd them to bundle '+b+'? (They will be marked as added at scanning.)')){
@@ -612,19 +622,23 @@ function roleUI(){
   $('uAdmin').disabled=!isFixed(me.email);$('sgSel').value=SIGNIN;$('sgSel').disabled=!isFixed(me.email);
   $('csvBtn').classList.toggle('hide',!role.view);$('recTitle').textContent=role.view?'All bundles':'My entries';
 }
-function setUsers(list){users={};list.forEach(function(r){users[String(r.email).toLowerCase()]={admin:!!r.admin,pack:!!r.pack,scan:!!r.scan,view:!!r.view,dept:r.dept||'',designation:r.designation||''}})}
+function setUsers(list){users={};list.forEach(function(r){users[String(r.email).toLowerCase()]={admin:!!r.admin,pack:!!r.pack,scan:!!r.scan,view:!!r.view,dept:r.dept||'',designation:r.designation||'',mobile:r.mobile||''}})}
 async function loadUsers(){try{setUsers(await call('getUsers'));renderUsers()}catch(e){$('uMsg').textContent='\u26A0 '+e.message}}
 function renderUsers(){
   var ks=Object.keys(users).sort();
   $('uEmpty').classList.toggle('hide',ks.length>0);$('fixedAdmins').textContent=ADMIN_EMAILS.join(', ');
   $('ub').innerHTML=ks.map(function(k){var u=users[k];
     function cb(f){return'<td><input type="checkbox" data-e="'+esc(k)+'" data-k="'+f+'"'+(u[f]?' checked':'')+(f==='admin'&&!isFixed(me.email)?' disabled title="Only the fixed admin can change Admin access"':'')+' style="width:auto"></td>'}
-    function tx(f){return'<td><input type="text" data-e="'+esc(k)+'" data-t="'+f+'" value="'+esc(u[f]||'')+'" style="min-width:110px"></td>'}
-    return'<tr><td>'+esc(k)+'</td>'+tx('dept')+tx('designation')+cb('admin')+cb('pack')+cb('scan')+cb('view')+'<td><button class="s" data-rm="'+esc(k)+'">Remove</button></td></tr>'}).join('');
+    function tx(f,ph,w){return'<td><input type="text" data-e="'+esc(k)+'" data-t="'+f+'" value="'+esc(u[f]||'')+'" placeholder="'+(ph||'')+'" style="min-width:'+(w||110)+'px"></td>'}
+    return'<tr><td>'+esc(k)+'</td>'+tx('mobile','10-digit',115)+tx('dept','',95)+tx('designation','',115)+cb('admin')+cb('pack')+cb('scan')+cb('view')+'<td><button class="s" data-rm="'+esc(k)+'">Remove</button></td></tr>'}).join('');
 }
 $('ub').onchange=async function(e){
   var t=e.target,k=t.dataset.e;if(!k||!users[k])return;
-  if(t.dataset.t){var pv=users[k][t.dataset.t]||'',nv=t.value.trim();if(nv===pv)return;users[k][t.dataset.t]=nv;
+  if(t.dataset.t){
+    var pv=users[k][t.dataset.t]||'',nv=t.value.trim();
+    if(t.dataset.t==='mobile')nv=nv.replace(/\D/g,'').slice(-10);
+    if(nv===pv)return;
+    users[k][t.dataset.t]=nv;t.value=nv;
     try{await call('saveUser',k,users[k]);$('uMsg').textContent='Saved \u2713'}catch(err){users[k][t.dataset.t]=pv;t.value=pv;$('uMsg').textContent='\u26A0 '+err.message}return}
   if(t.dataset.k==='admin'&&(!isFixed(me.email)||(t.checked&&!confirm('Make '+k+' an ADMIN? Admins can see everything and manage everyone\'s access.')))){t.checked=!!users[k].admin;return}
   var prev=users[k][t.dataset.k];users[k][t.dataset.k]=t.checked;
@@ -638,11 +652,12 @@ $('ub').onclick=async function(e){
 };
 $('uAdd').onclick=async function(){
   var e=$('uEmail').value.trim().toLowerCase();
+  var mob=$('uMobile').value.replace(/\D/g,'').slice(-10);
   if(e.indexOf('@')<1){$('uMsg').textContent='Enter a valid e-mail address.';return}
   if(isFixed(e)){$('uMsg').textContent='That address is already a fixed admin.';return}
-  var u={admin:$('uAdmin').checked,pack:$('uPack').checked,scan:$('uScan').checked,view:$('uView').checked,dept:$('uDept').value.trim(),designation:$('uDesig').value.trim()};
+  var u={admin:$('uAdmin').checked,pack:$('uPack').checked,scan:$('uScan').checked,view:$('uView').checked,dept:$('uDept').value.trim(),designation:$('uDesig').value.trim(),mobile:mob};
   if(u.admin&&(!isFixed(me.email)||!confirm('Make '+e+' an ADMIN? Admins can see everything and manage everyone\'s access.'))){$('uMsg').textContent=isFixed(me.email)?'Cancelled.':'Only the fixed admin can make someone an Admin.';return}
-  try{await call('saveUser',e,u);users[e]=u;renderUsers();$('uMsg').textContent='Added '+e+'.';$('uEmail').value='';$('uDept').value='';$('uDesig').value='';['uAdmin','uPack','uScan','uView'].forEach(function(i){$(i).checked=false})}
+  try{await call('saveUser',e,u);users[e]=u;renderUsers();$('uMsg').textContent='Added '+e+'.';$('uEmail').value='';$('uMobile').value='';$('uDept').value='';$('uDesig').value='';['uAdmin','uPack','uScan','uView'].forEach(function(i){$(i).checked=false})}
   catch(err){$('uMsg').textContent='\u26A0 '+err.message}
 };
 
@@ -671,13 +686,15 @@ function usersFromRows(arr){
   if(hi<0)return null;
   var H=arr[hi].map(function(c){return String(c).toLowerCase().replace(/[^a-z]/g,'')});
   function col(re){for(var j=0;j<H.length;j++)if(re.test(H[j]))return j;return -1}
-  var ce=col(/mail/),ca=col(/^admin/),cp=col(/^pack/),cs=col(/^scan/),cv=col(/^view/),cd=col(/^dep/),cdg=col(/^desig/),out={},bad=[];
+  var ce=col(/mail/),cm=col(/mob|phone|cell/),ca=col(/^admin/),cp=col(/^pack/),cs=col(/^scan/),cv=col(/^view/),cd=col(/^dep/),cdg=col(/^desig/),out={},bad=[];
   for(var k=hi+1;k<arr.length;k++){
     var r=arr[k],e=String(r[ce]==null?'':r[ce]).trim().toLowerCase();if(!e)continue;
     if(/@example\.(com|org|net)$/.test(e))continue;
     if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)){bad.push(e);continue}
     out[e]={admin:ca>=0&&truthy(r[ca]),pack:cp>=0&&truthy(r[cp]),scan:cs>=0&&truthy(r[cs]),view:cv>=0&&truthy(r[cv])};
-    if(cd>=0)out[e].dept=String(r[cd]==null?'':r[cd]).trim();if(cdg>=0)out[e].designation=String(r[cdg]==null?'':r[cdg]).trim();
+    if(cm>=0)out[e].mobile=String(r[cm]==null?'':r[cm]).replace(/\D/g,'').slice(-10);
+    if(cd>=0)out[e].dept=String(r[cd]==null?'':r[cd]).trim();
+    if(cdg>=0)out[e].designation=String(r[cdg]==null?'':r[cdg]).trim();
   }
   return{users:out,bad:bad};
 }
@@ -687,7 +704,7 @@ $('uImp').onclick=async function(){
   try{
     imsg('Reading the file…');
     var res=usersFromRows(await readRows(f));
-    if(!res){imsg('No header row found. The first row needs: Email, Admin, Packing, Scanning, View all.');return}
+    if(!res){imsg('No header row found. Needs: Email, Mobile, Admin, Packing, Scanning, View all.');return}
     var nu=res.users;ADMIN_EMAILS.forEach(function(a){delete nu[a.toLowerCase()]});
     if(!Object.keys(nu).length){imsg('No people found in the file.');return}
     var repl=$('uRepl').checked,fx=isFixed(me.email);
@@ -701,11 +718,11 @@ $('uImp').onclick=async function(){
     setUsers(await call('importUsers',nu,repl));renderUsers();
     imsg('Done: '+n+' people loaded'+(removed.length?', '+removed.length+' removed':'')+'.'+(res.bad.length?' Skipped (not valid e-mails): '+res.bad.join(', '):''));
     $('uFile').value='';
-  }catch(e){imsg('Could not read the file: '+(e&&e.message||e)+(/library/.test(String(e&&e.message))?' Use a .csv file or connect to the internet.':''))}
+  }catch(e){imsg('Could not read the file: '+(e&&e.message||e))}
 };
 $('uExp').onclick=async function(){
   var ks=Object.keys(users).sort(),yn=function(v){return v?'Yes':''};
-  var A=[['Email','Dept','Designation','Admin','Packing','Scanning','View all']].concat(ks.map(function(k){var u=users[k];return[k,u.dept||'',u.designation||'',yn(u.admin),yn(u.pack),yn(u.scan),yn(u.view)]}));
+  var A=[['Email','Mobile','Dept','Designation','Admin','Packing','Scanning','View all']].concat(ks.map(function(k){var u=users[k];return[k,u.mobile||'',u.dept||'',u.designation||'',yn(u.admin),yn(u.pack),yn(u.scan),yn(u.view)]}));
   try{await loadXlsx();var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(A),'Users');XLSX.writeFile(wb,'access_list.xlsx')}
   catch(e){
     var out=A.map(function(r){return r.map(function(v){return'"'+String(v).replace(/"/g,'""')+'"'}).join(',')}).join('\n');
@@ -715,25 +732,24 @@ $('uExp').onclick=async function(){
 
 $('sgSel').onchange=async function(){
   var v=this.value,m=$('sgMsg');
-  if(v==='email'&&!confirm('Switch to E-MAIL ONLY sign-in?\n\nAnyone who types an address you added is let in as that person without a code. Admin accounts still need a code.'))return(this.value=SIGNIN);
   try{SIGNIN=await call('setSigninMode',v);m.textContent='Saved \u2713';m.className='ok'}catch(e){this.value=SIGNIN;m.textContent=e.message;m.className='warn'}
 };
 $('mcCode').onclick=async function(){
   var o=$('mcOut');o.className='sub';o.textContent='Making a code…';
   try{var r=await call('issueCode',$('mcIn').value);o.className='ok';
-    o.innerHTML='Sign-in code for <b>'+esc(r.email)+'</b>: <span style="font-size:28px;letter-spacing:4px;font-weight:700">'+esc(r.code)+'</span><br><span class="sub">Valid for '+r.minutes+' minutes, one use. Send it to that person by WhatsApp, then they open the app link, type their e-mail, tap <b>I already have a code</b> (do not tap Send me a code, it would replace this one) and enter it.</span>'}
+    o.innerHTML='Sign-in code for <b>'+esc(r.email)+'</b>: <span style="font-size:28px;letter-spacing:4px;font-weight:700">'+esc(r.code)+'</span><br><span class="sub">Valid for '+r.minutes+' minutes, one use.</span>'}
   catch(e){o.className='warn';o.textContent=e.message}
 };
 $('mcGo').onclick=async function(){
   var o=$('mcOut');o.className='sub';o.textContent='Checking…';
   try{var r=await call('mailCheck',$('mcIn').value);
     o.className=r.sent&&r.onList?'ok':'warn';
-    o.innerHTML=(r.onList?'\u2713 '+esc(r.email)+' is on the access list.':'\u2717 '+esc(r.email)+' is NOT on the access list - no sign-in code is sent to addresses that are not listed. Add it above (check the spelling).')+'<br>'+
-      (!r.onList?'':r.sent?'\u2713 Test e-mail sent ('+r.quota+' e-mails left today). Ask them to check Inbox, Spam and Promotions.':'\u2717 The e-mail could not be sent: '+esc(r.error)+(/authori|permission/i.test(r.error)?' - in the Apps Script editor run authorizeMail once and allow it, then deploy a New version.':''))}
+    o.innerHTML=(r.onList?'\u2713 '+esc(r.email)+' is on the access list.':'\u2717 '+esc(r.email)+' is NOT on the access list.')+'<br>'+
+      (!r.onList?'':r.sent?'\u2713 Test e-mail sent ('+r.quota+' e-mails left today).':'\u2717 The e-mail could not be sent: '+esc(r.error))}
   catch(e){o.className='warn';o.textContent=e.message}
 };
 
-// ===== label register upload (admin) =====
+// ===== label register upload =====
 function rmsg(t){$('rMsg').textContent=t}
 async function loadRegCount(){try{var n=await call('registerCount');rmsg(n+' labels in the register.')}catch(e){rmsg('\u26A0 '+e.message)}}
 var RMAP={bundleid:'id',id:'id',examination:'exam',exam:'exam',regulation:'reg',reg:'reg',campus:'campus',branch:'branch',subject:'subject',subjectcode:'code',code:'code',date:'date',bundleno:'bundle',bundle:'bundle',scriptsinbundle:'count',scripts:'count',studentsattendedstrength:'strength',strength:'strength'};
@@ -780,7 +796,7 @@ $('rDl').onclick=async function(){
   }catch(e){rmsg('Could not download: '+(e&&e.message||e))}
 };
 $('rClr').onclick=async function(){
-  if(!confirm('Delete ALL labels from the register?\n\nTip: click Download register first to keep a copy. (Packed / scanned bundle records are not touched.)'))return;
+  if(!confirm('Delete ALL labels from the register?\n\nTip: click Download register first to keep a copy.'))return;
   try{await call('registerClear');rmsg('Register cleared.')}catch(e){rmsg('\u26A0 '+e.message)}
 };
 
@@ -810,24 +826,24 @@ async function poll(){
   }catch(e){}
 }
 async function start(){
-  if(API_URL&&/PASTE/.test(API_URL)){gate('Not set up yet: open this file in a text editor and put your Apps Script API link on the line that starts with var API_URL.');return}
+  if(API_URL&&/PASTE/.test(API_URL)){gate('Not set up yet: put your Apps Script API link in API_URL.');return}
   try{
     var r=await call('init');
     ADMIN_EMAILS=r.fixed||[];
     if(!r.email){
       if(TOKEN){TOKEN='';try{localStorage.removeItem('svceTok')}catch(e){}}
-      SIGNIN=r.signin||'code';applyGate();initGoogle();
+      SIGNIN=r.signin||'email';applyGate();initGoogle();
       $('codeBox').classList.remove('hide');return}
     $('codeBox').classList.add('hide');
     if(!r.role||!modesFor(r.role).length){gate('Access denied: '+r.email+' has not been given access. Ask the admin.');return}
-    SIGNIN=r.signin||'code';me={email:r.email};role=r.role;
+    SIGNIN=r.signin||'email';me={email:r.email,dept:r.dept,designation:r.designation};role=r.role;
     $('gate').classList.add('hide');$('app').classList.remove('hide');roleUI();
     await poll();
     var ms=modesFor(role);setMode(ms.length===1?ms[0]:'');
     pollTimer=setInterval(poll,30000);
   }catch(e){gate('Could not start: '+e.message)}
 }
-var SIGNIN='code';
+var SIGNIN='email';
 function initGoogle(){
   if(!API_URL||!GOOGLE_CLIENT_ID||/PASTE/.test(GOOGLE_CLIENT_ID))return;
   var setup=function(){try{
@@ -842,23 +858,65 @@ async function onGoogleCred(resp){
     TOKEN=q.token;try{localStorage.setItem('svceTok',TOKEN)}catch(x){}gate('Signing you in…');$('codeBox').classList.add('hide');await start()}
   catch(err){gerr(err.message)}
 }
+function showMobileSec(show){
+  gerr('');
+  $('emailLoginSec').classList.toggle('hide',show);
+  $('mobileLoginSec').classList.toggle('hide',!show);
+  if(show)$('gMobile').focus();else $('gMail').focus();
+}
+$('toMobileBtn').onclick=function(){showMobileSec(true)};
+$('toEmailBtn').onclick=function(){showMobileSec(false)};
+
 function applyGate(){
-  if(SIGNIN==='email'){gate('Type your e-mail address to sign in. Only addresses added by the admin can enter.');$('gSend').textContent='Sign in';$('gHave').textContent='I have a code'}
-  else{gate('Sign in with your e-mail address. A 6-digit code will be sent to it (only for addresses the admin has added).');$('gSend').textContent='Send me a code';$('gHave').textContent='I already have a code'}
+  showMobileSec(false);
+  if(SIGNIN==='email'){
+    gate('Sign in with your registered E-mail address (or use your Mobile Number below).');
+    $('gSend').textContent='Sign in';
+    $('gHave').classList.add('hide');
+  } else {
+    gate('Sign in with your e-mail address (a 6-digit code will be sent) or verify with Mobile Number below.');
+    $('gSend').textContent='Send me a code';
+    $('gHave').classList.remove('hide');
+  }
 }
 function gerr(t){$('gErr').textContent=t||''}
+
+// Primary: E-mail Sign-in
 $('gSend').onclick=async function(){
   var e=$('gMail').value.trim().toLowerCase();gerr('');
   if(e.indexOf('@')<1){gerr('Enter your e-mail address.');return}
   if(SIGNIN==='email'){
-    try{var q=await call('quickSignIn',e);
-      if(q&&q.token){TOKEN=q.token;try{localStorage.setItem('svceTok',TOKEN)}catch(x){}gate('Signing you in…');$('codeBox').classList.add('hide');await start();return}
-      gerr('Admin accounts sign in with a code.')}catch(err){gerr(err.message);return}
+    try{
+      var q=await call('quickSignIn',e);
+      if(q&&q.token){
+        TOKEN=q.token;try{localStorage.setItem('svceTok',TOKEN)}catch(x){}
+        gate('Signing you in…');$('codeBox').classList.add('hide');await start();return;
+      }
+    }catch(err){
+      gerr(err.message);
+      return;
+    }
   }
-  try{await call('requestCode',e);$('gCodeRow').classList.remove('hide');gerr('If this address has access, a code was sent. Check your inbox (and spam). It works for 10 minutes.');$('gCode').focus()}
+  try{await call('requestCode',e);$('gCodeRow').classList.remove('hide');gerr('Code sent! Check inbox/spam (or verify via Mobile Number below).');$('gCode').focus()}
   catch(err){gerr(err.message)}
 };
-$('gHave').onclick=function(){$('gCodeRow').classList.remove('hide');gerr('Type your e-mail address above, then the 6-digit code the admin gave you.');$('gCode').focus()};
+$('gMail').onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();$('gSend').click()}};
+
+// Secondary: Mobile Number Fallback Sign-in
+$('gMobileBtn').onclick=async function(){
+  var m=$('gMobile').value.replace(/\D/g,'').slice(-10);gerr('');
+  if(m.length!==10){gerr('Enter your 10-digit registered mobile number.');return}
+  try{
+    var q=await call('mobileSignIn',m);
+    if(q&&q.token){
+      TOKEN=q.token;try{localStorage.setItem('svceTok',TOKEN)}catch(x){}
+      gate('Mobile verified! Signing you in…');$('codeBox').classList.add('hide');await start();
+    }
+  }catch(err){gerr(err.message)}
+};
+$('gMobile').onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();$('gMobileBtn').click()}};
+
+$('gHave').onclick=function(){$('gCodeRow').classList.remove('hide');gerr('Type your e-mail address above, then the 6-digit code.');$('gCode').focus()};
 $('gVerify').onclick=async function(){
   var e=$('gMail').value.trim().toLowerCase(),c=$('gCode').value.trim();gerr('');
   if(!/^\d{6}$/.test(c)){gerr('Enter the 6-digit code.');return}
@@ -869,7 +927,7 @@ $('gVerify').onclick=async function(){
 function signOutToken(){
   call('logout',TOKEN).catch(function(){});TOKEN='';try{localStorage.removeItem('svceTok')}catch(e){}
   if(pollTimer){clearInterval(pollTimer);pollTimer=null}me=null;role=null;rows=[];$('app').classList.add('hide');$('gate').classList.remove('hide');
-  applyGate();gate('Signed out. Enter your e-mail address to sign in again.');$('codeBox').classList.remove('hide');$('gCodeRow').classList.add('hide');gerr('');
+  applyGate();gate('Signed out. Enter your e-mail or mobile number to sign in again.');$('codeBox').classList.remove('hide');$('gCodeRow').classList.add('hide');gerr('');
 }
 async function switchAccount(){
   if(TOKEN){signOutToken();return}
