@@ -41,6 +41,10 @@ th{color:var(--mu);font-weight:600}
 .tag.Mode{color:var(--ac)}
 .chip{display:inline-block;background:var(--bg);border:1px solid var(--bd);border-radius:99px;padding:2px 10px;margin:6px 6px 0 0;font-size:13px}.chip b{cursor:pointer;margin-left:7px;color:var(--er)}
 .linkBtn{background:none;border:0;color:var(--ac);padding:4px 0;text-decoration:underline;font-size:13px;cursor:pointer}
+.footer{display:flex;align-items:center;justify-content:center;gap:10px;padding:18px 12px 24px;margin-top:16px;font-size:13.5px;color:var(--mu)}
+.dev-badge{display:inline-block;padding:6px 15px;border-radius:10px;background:rgba(31,95,191,.10);border:1px solid rgba(31,95,191,.28);color:var(--ac);font-weight:700;letter-spacing:.2px}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .dev-badge{background:#25313d;border-color:#445568;color:#7cb0ff}}
+:root[data-theme="dark"] .dev-badge{background:#25313d;border-color:#445568;color:#7cb0ff}
 </style>
 </head>
 <body>
@@ -82,7 +86,7 @@ th{color:var(--mu);font-weight:600}
     <div><h1>Answer Script Bundles <span class="tag Mode" id="modeBadge"></span></h1>
     <div class="sub">Signed in as <span id="me"></span></div></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button id="swBtn" class="hide">Switch mode</button><button id="accBtn">Switch account / sign out</button><button id="csvBtn">Export CSV</button>
+      <button id="swBtn" class="hide">Switch mode</button><button id="accBtn">Switch account / sign out</button><button class="p" id="csvBtn">Export Excel (All)</button>
     </div>
   </div>
   <div id="modeBox" class="card">
@@ -166,7 +170,41 @@ th{color:var(--mu);font-weight:600}
       <tbody id="tb"></tbody></table></div>
     <p class="sub" id="empty">No bundles recorded yet.</p>
   </div>
+
+  <!-- ON-SCREEN AUDIT LOGS IN VIEW ALL MODE -->
+  <div id="auditPanel" class="card hide">
+    <h2>Detailed Audit Logs (Script Map &amp; Field Changes)</h2>
+    <p class="sub">Clicking <b>Export Excel (All)</b> at the top downloads a complete multi-sheet Excel workbook containing <b>Bundles</b>, <b>Script Map</b>, and <b>Changes</b>. You can also view them live below:</p>
+    <p style="display:flex;gap:8px;flex-wrap:wrap">
+      <button id="btnLoadScripts">Load Script Map (All Booklets)</button>
+      <button id="btnLoadChanges">Load Changes Log (Edit History)</button>
+    </p>
+
+    <div id="scriptMapWrap" class="hide" style="margin-top:12px">
+      <div class="row" style="margin-bottom:8px">
+        <div><label>Filter Script Map (barcode / bundle / branch / status)</label><input id="smFilter" placeholder="Type to filter scripts..."></div>
+      </div>
+      <p class="sub" id="smCount"></p>
+      <div class="tw"><table style="min-width:780px">
+        <thead><tr><th>Script Barcode</th><th>Bundle</th><th>Branch</th><th>Status</th><th>Packed By / At</th><th>Verified By / At</th><th>Added at Scan</th></tr></thead>
+        <tbody id="smBody"></tbody>
+      </table></div>
+    </div>
+
+    <div id="changesWrap" class="hide" style="margin-top:12px">
+      <div class="row" style="margin-bottom:8px">
+        <div><label>Filter Changes Log (bundle / subject / stage / user)</label><input id="chFilter" placeholder="Type to filter changes..."></div>
+      </div>
+      <p class="sub" id="chCount"></p>
+      <div class="tw"><table style="min-width:820px">
+        <thead><tr><th>Time</th><th>Bundle</th><th>Subject</th><th>Stage</th><th>Field</th><th>Before</th><th>Modified To</th><th>Changed By</th><th>Basis</th></tr></thead>
+        <tbody id="chBody"></tbody>
+      </table></div>
+    </div>
+  </div>
+
 </div>
+<footer class="footer"><span>Developed by</span><span class="dev-badge">Subramanyam J</span></footer>
 </div>
 <div id="scanBox" class="hide" style="position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:50;display:flex;align-items:center;justify-content:center;padding:12px">
   <div class="card" style="max-width:420px;width:100%;margin:0">
@@ -179,13 +217,14 @@ th{color:var(--mu);font-weight:600}
     <p><button id="scanCancel">Close</button></p>
   </div>
 </div>
-<script>var INITIAL_ID = ""; var API_URL = "https://script.google.com/macros/s/AKfycbwCygQrxLdn7tNCehfS64l0B2jWEi4uBZYn5tO_eDjpnwhdr2k_vTP38oAyG1ILLLk/exec"; var GOOGLE_CLIENT_ID = "";
+<script>var INITIAL_ID = "<?= initialId ?>"; var API_URL = ""; var GOOGLE_CLIENT_ID = "";
 try{if(!INITIAL_ID)INITIAL_ID=(new URLSearchParams(location.search).get("id")||"").toUpperCase().replace(/[^A-Z0-9-]/g,"").slice(0,40)}catch(e){}</script>
 <script>
 (function(){
 var $=function(i){return document.getElementById(i)};
 var TOKEN='';try{TOKEN=localStorage.getItem('svceTok')||''}catch(e){}
 var me=null,rows=[],mode='',curId='',lastLabel=null,pollTimer=null,role=null,users={},ADMIN_EMAILS=[],inflight=0;
+var auditCache={scripts:[],changes:[]};
 function gate(m){$('gateMsg').textContent=m}
 function esc(s){var d=document.createElement('div');d.textContent=s==null?'':String(s);return d.innerHTML.replace(/"/g,'&quot;')}
 function fmt(t){return t?new Date(t).toLocaleString([],{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):''}
@@ -603,13 +642,91 @@ $('tb').onclick=function(e){
   if(b.dataset.a==='del'&&confirm('Delete packed bundle '+r.bundle+'?'))delRec(id);
 };
 $('q').oninput=render;$('fs').onchange=render;
-$('csvBtn').onclick=function(){
-  var h=['bundle','date','code','subject','branch','reg','exam','strength','count','mpCount','mpRolls','status','packedBy','packedAt','scanStartBy','scanStartAt','scannedBy','scannedAt','scannedCount','labelEdited','packEdits','scanEdits','remarks','scanRemarks'];
-  var q=function(v){return'"'+String(v==null?'':v).replace(/"/g,'""')+'"'};
-  var out=[h.join(',')].concat(rows.map(function(r){return h.map(function(k){return q(/At$/.test(k)&&r[k]?new Date(r[k]).toISOString():r[k])}).join(',')})).join('\n');
-  var bl=new Blob(["\ufeff"+out],{type:'text/csv'}),u=URL.createObjectURL(bl),l=document.createElement('a');
-  l.href=u;l.download='script_bundles.csv';document.body.appendChild(l);l.click();l.remove();setTimeout(function(){URL.revokeObjectURL(u)},1000);
+
+// ===== multi-sheet Excel export (Bundles + Script Map + Changes) =====
+$('csvBtn').onclick=async function(){
+  var btn=$('csvBtn'),orig=btn.textContent;
+  btn.disabled=true;btn.textContent='Preparing Excel…';
+  try{
+    var allData=await call('exportAllData');
+    auditCache.scripts=allData.scripts||[];
+    auditCache.changes=allData.changes||[];
+    var bList=allData.bundles||rows;
+
+    var bHeaders=['Bundle No','Date','Subject Code','Subject Name','Branch','Regulation','Examination','Attended Strength','Scripts in Bundle','MP Count','MP Roll Numbers','Status','Packed By','Packed At','Scan Started By','Scan Started At','Scanned By','Scanned At','Scanned Count','Label Edited','Packing Edits','Scanning Edits','Packing Remarks','Scanning Remarks'];
+    var bKeys=['bundle','date','code','subject','branch','reg','exam','strength','count','mpCount','mpRolls','status','packedBy','packedAt','scanStartBy','scanStartAt','scannedBy','scannedAt','scannedCount','labelEdited','packEdits','scanEdits','remarks','scanRemarks'];
+    var bRows=[bHeaders].concat(bList.map(function(r){
+      return bKeys.map(function(k){return /At$/.test(k)&&r[k]?new Date(r[k]).toLocaleString():(r[k]==null?'':r[k])});
+    }));
+
+    var sRows=[['Script Barcode','Bundle No','Branch','Verification Status','Packed By','Packed At','Verified By','Verified At','Added at Scanning']].concat(
+      auditCache.scripts.map(function(s){return[s.script,s.bundle,s.branch,s.verified,s.packedBy,s.packedAt,s.verifiedBy,s.verifiedAt,s.addedAtScan]})
+    );
+
+    var cRows=[['Time','Bundle No','Subject Code','Stage','Field Changed','Actual (Before)','Modified To','Changed By','Basis']].concat(
+      auditCache.changes.map(function(c){return[c.time,c.bundle,c.code,c.stage,c.field,c.before,c.after,c.changedBy,c.basis]})
+    );
+
+    var d=new Date(),stamp=d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());
+    try{
+      await loadXlsx();
+      var wb=XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(bRows),'Bundles');
+      XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(sRows),'Script Map');
+      XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(cRows),'Changes');
+      XLSX.writeFile(wb,'Answer_Script_Bundles_Report_'+stamp+'.xlsx');
+    }catch(xlErr){
+      var q=function(v){return'"'+String(v==null?'':v).replace(/"/g,'""')+'"'};
+      var out=bRows.map(function(r){return r.map(q).join(',')}).join('\n');
+      var bl=new Blob(["\ufeff"+out],{type:'text/csv'}),u=URL.createObjectURL(bl),l=document.createElement('a');
+      l.href=u;l.download='script_bundles_'+stamp+'.csv';document.body.appendChild(l);l.click();l.remove();setTimeout(function(){URL.revokeObjectURL(u)},1000);
+    }
+  }catch(e){
+    alert('Export failed: '+(e&&e.message||e));
+  }finally{
+    btn.disabled=false;btn.textContent=orig;
+  }
 };
+
+// ===== on-screen audit tables in View all mode =====
+function renderScriptMapTable(){
+  var q=($('smFilter').value||'').toLowerCase().trim();
+  var list=auditCache.scripts.filter(function(s){
+    return !q||[s.script,s.bundle,s.branch,s.verified,s.packedBy,s.verifiedBy].join(' ').toLowerCase().indexOf(q)>=0;
+  });
+  $('smCount').textContent='Showing '+list.length+' of '+auditCache.scripts.length+' scripts';
+  $('smBody').innerHTML=list.slice(0,500).map(function(s){
+    return'<tr><td><b>'+esc(s.script)+'</b></td><td>'+esc(s.bundle)+'</td><td>'+esc(s.branch)+'</td><td><span class="tag '+(s.verified==='Verified'?'Scanned':'Packed')+'">'+esc(s.verified)+'</span></td><td class="sub">'+esc(s.packedBy)+'<br>'+esc(s.packedAt)+'</td><td class="sub">'+esc(s.verifiedBy)+'<br>'+esc(s.verifiedAt)+'</td><td>'+esc(s.addedAtScan)+'</td></tr>';
+  }).join('')+(list.length>500?'<tr><td colspan="7" class="sub">Showing first 500 rows. Use the filter above or click Export Excel (All) for the full list.</td></tr>':'');
+}
+function renderChangesTable(){
+  var q=($('chFilter').value||'').toLowerCase().trim();
+  var list=auditCache.changes.filter(function(c){
+    return !q||[c.bundle,c.code,c.stage,c.field,c.before,c.after,c.changedBy].join(' ').toLowerCase().indexOf(q)>=0;
+  });
+  $('chCount').textContent='Showing '+list.length+' of '+auditCache.changes.length+' logged changes';
+  $('chBody').innerHTML=list.slice(0,500).map(function(c){
+    return'<tr><td class="sub">'+esc(c.time)+'</td><td><b>'+esc(c.bundle)+'</b></td><td>'+esc(c.code)+'</td><td>'+esc(c.stage)+'</td><td>'+esc(c.field)+'</td><td class="sub">'+esc(c.before)+'</td><td>'+esc(c.after)+'</td><td class="sub">'+esc(c.changedBy)+'</td><td class="sub">'+esc(c.basis)+'</td></tr>';
+  }).join('')+(list.length>500?'<tr><td colspan="9" class="sub">Showing first 500 rows. Use the filter above or click Export Excel (All) for the full log.</td></tr>':'');
+}
+$('btnLoadScripts').onclick=async function(){
+  try{
+    var all=await call('exportAllData');
+    auditCache.scripts=all.scripts||[];auditCache.changes=all.changes||[];
+    $('scriptMapWrap').classList.remove('hide');
+    renderScriptMapTable();
+  }catch(e){alert(e.message)}
+};
+$('btnLoadChanges').onclick=async function(){
+  try{
+    var all=await call('exportAllData');
+    auditCache.scripts=all.scripts||[];auditCache.changes=all.changes||[];
+    $('changesWrap').classList.remove('hide');
+    renderChangesTable();
+  }catch(e){alert(e.message)}
+};
+$('smFilter').oninput=renderScriptMapTable;
+$('chFilter').oninput=renderChangesTable;
 
 // ===== roles, users, admin =====
 function isFixed(e){e=String(e||'').toLowerCase();return ADMIN_EMAILS.some(function(x){return x.toLowerCase()===e})}
@@ -805,6 +922,7 @@ function setMode(m){
   mode=m;var n=role?modesFor(role).length:0;
   $('modeBox').classList.toggle('hide',!!m);$('packPanel').classList.toggle('hide',m!=='pack');$('scanPanel').classList.toggle('hide',m!=='scan');$('adminPanel').classList.toggle('hide',m!=='admin');$('scFind').classList.toggle('hide',!m||m==='admin');
   $('recCard').classList.toggle('hide',!m||m==='admin');$('swBtn').classList.toggle('hide',!m||n<2);
+  $('auditPanel').classList.toggle('hide',!(m==='view'&&role&&role.view));
   $('modeBadge').textContent=MODENAME[m]||'';
   $('sCard').innerHTML='';smsg('');pmsg('');if(m==='admin'){loadUsers();loadRegCount()}render();
   if(m!=='view')$('lblInfo').classList.add('hide');
@@ -881,7 +999,6 @@ function applyGate(){
 }
 function gerr(t){$('gErr').textContent=t||''}
 
-// Primary: E-mail Sign-in
 $('gSend').onclick=async function(){
   var e=$('gMail').value.trim().toLowerCase();gerr('');
   if(e.indexOf('@')<1){gerr('Enter your e-mail address.');return}
@@ -902,7 +1019,6 @@ $('gSend').onclick=async function(){
 };
 $('gMail').onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();$('gSend').click()}};
 
-// Secondary: Mobile Number Fallback Sign-in
 $('gMobileBtn').onclick=async function(){
   var m=$('gMobile').value.replace(/\D/g,'').slice(-10);gerr('');
   if(m.length!==10){gerr('Enter your 10-digit registered mobile number.');return}
