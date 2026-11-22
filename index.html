@@ -80,9 +80,10 @@ th{color:var(--mu);font-weight:600}
       <div><label>Branch</label><input id="pBranch"></div><div><label>Regulation</label><input id="pReg"></div>
       <div><label>Scripts in the bundle</label><input type="number" min="0" id="pCount"></div><div><label>Students attended strength</label><input type="number" min="0" id="pStrength"></div>
       <div style="grid-column:1/-1"><label>Examination</label><input id="pExam"></div>
-      <div style="grid-column:1/-1;border:1px solid var(--bd);border-radius:10px;padding:10px"><label>Scripts in this bundle: <b id="pSN">0</b> &nbsp;<span class="sub">(scan the label first, then each script barcode)</span></label>
+      <div style="grid-column:1/-1;padding:2px 0"><label style="display:flex;gap:8px;align-items:center;margin:0;font-weight:600"><input type="checkbox" id="pWayA" style="width:auto"> Also scan each booklet's barcode here (full check)</label><div class="sub">Off = quick packing: only the label and the count. The booklets are recorded later from the Epson scan files. On = every booklet is scanned here too, and the Epson files are compared with this list.</div></div>
+      <div id="pScriptsBox" class="hide" style="grid-column:1/-1;border:1px solid var(--bd);border-radius:10px;padding:10px"><label>Scripts in this bundle: <b id="pSN">0</b> &nbsp;<span class="sub">(scan the label first, then each script barcode)</span></label>
         <div class="row"><div style="flex:0 0 150px"><label>Branch of these scripts</label><input id="pScriptBr" list="brList" placeholder="e.g. CSE"></div><input id="pScriptIn" placeholder="Click here and scan with a scanner gun, or type the script code + Enter"><button id="pScriptAdd">Add</button><button class="p" id="pScriptCam">&#128247; Scan scripts</button></div>
-        <datalist id="brList"><option>CSE</option><option>ECE</option><option>EEE</option><option>ME</option><option>CE</option><option>IT</option><option>AIML</option><option>AIDS</option><option>CSBS</option><option>MBA</option><option>MCA</option><option>M.Tech</option></datalist><div id="pBrPick" style="margin-top:6px"></div><div id="pBrSum" class="sub"></div><div id="pScriptMsg" class="sub"></div><div id="pScriptList"></div></div>
+        <datalist id="brList"><option>CSE</option><option>ECE</option><option>EEE</option><option>ME</option><option>CE</option><option>IT</option><option>AIML</option><option>AIDS</option><option>CSBS</option><option>MBA</option><option>MCA</option><option>M.Tech</option></datalist><div id="pExpect" style="margin:6px 0;font-weight:600"></div><div id="pBrPick" style="margin-top:6px"></div><div id="pBrSum" class="sub"></div><div id="pScriptMsg" class="sub"></div><div id="pScriptList"></div></div>
       <div style="grid-column:1/-1"><label>MP (malpractice) scripts &ndash; roll numbers</label><div class="row"><input id="pMpIn" placeholder="Roll number, then Enter or Add (you can paste several)"><button id="pMpAdd">Add</button></div><div id="pMpList"></div></div>
       <div style="grid-column:1/-1"><label>Remarks</label><input id="pRem"></div>
     </div>
@@ -152,7 +153,7 @@ th{color:var(--mu);font-weight:600}
     <p><button id="scanCancel">Close</button></p>
   </div>
 </div>
-<script>var INITIAL_ID = ""; var API_URL = "https://script.google.com/macros/s/AKfycbw8839Ob0DFtszPuYYAr2xA2r3gbCuRmpI6EBlbR3NC_sE9YB5aGsMMmKrP5ci3W9U/exec";
+<script>var INITIAL_ID = ""; var API_URL = "https://script.google.com/macros/s/AKfycbwCygQrxLdn7tNCehfS64l0B2jWEi4uBZYn5tO_eDjpnwhdr2k_vTP38oAyG1ILLLk/exec";
 try{if(!INITIAL_ID)INITIAL_ID=(new URLSearchParams(location.search).get("id")||"").toUpperCase().replace(/[^A-Z0-9-]/g,"").slice(0,40)}catch(e){}</script>
 <script>
 (function(){
@@ -229,7 +230,7 @@ function parseLabel(raw){
   }
   return o;
 }
-var cam={stream:null,h5:null,on:false,cb:null,multi:false,last:'',lastAt:0};
+var cam={stream:null,h5:null,on:false,cb:null,multi:false,linear:false,last:'',lastAt:0};
 function loadScript(src){return new Promise(function(r,j){var x=document.createElement('script');x.src=src;x.onload=r;x.onerror=function(){j(new Error('could not load scanner library (needs internet)'))};document.head.appendChild(x)})}
 function stopCam(){
   cam.on=false;
@@ -237,27 +238,28 @@ function stopCam(){
   if(cam.h5){try{cam.h5.stop().catch(function(){})}catch(e){}cam.h5=null}
   $('scanVideo').srcObject=null;
 }
-function closeScan(){cam.multi=false;stopCam();$('scanBox').classList.add('hide')}
+function closeScan(){cam.multi=false;cam.linear=false;stopCam();$('scanBox').classList.add('hide')}
 function gotCode(t,f){
   var cb=cam.cb;t=String(t||'').trim();
+  if(cam.linear&&/qr|pdf.?417|matrix|aztec/i.test(String(f||'')))return; // booklet QR is ignored: only the straight barcode (Sl.No.) counts
   if(cam.multi){ // keep the camera open for the next script; ignore the same code seen again straight away
     if(!t)return;var n=Date.now();if(t===cam.last&&n-cam.lastAt<2500)return;cam.last=t;cam.lastAt=n;
     try{if(navigator.vibrate)navigator.vibrate(60)}catch(e){}$('scanTxt').value='';if(cb)cb(t,f);return}
   closeScan();if(t&&cb)cb(t,f)}
-async function openScan(cb,multi,brId){
-  cam.cb=cb;cam.multi=!!multi;cam.last='';$('scanBrRow').classList.toggle('hide',!multi);var bf=brId||'pScriptBr';$('scanBr').value=$(bf).value;$('scanBr').oninput=function(){$(bf).value=this.value};$('scanTitle').textContent=multi?'Scan the scripts one after another':'Scan bundle code';$('scanTxt').value='';$('scanBox').classList.remove('hide');
+async function openScan(cb,multi,brId,linear){
+  cam.cb=cb;cam.multi=!!multi;cam.linear=!!(linear||multi);cam.last='';$('scanBrRow').classList.toggle('hide',!multi);var bf=brId||'pScriptBr';$('scanBr').value=$(bf).value;$('scanBr').oninput=function(){$(bf).value=this.value};$('scanTitle').textContent=multi?'Scan the scripts one after another':'Scan bundle code';$('scanTxt').value='';$('scanBox').classList.remove('hide');
   $('scanMsg').textContent='Starting camera…';$('scanVideo').style.display='';$('scanReader').style.display='none';
   try{
     if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new Error('Camera needs the page to be opened over https (a hosted link), not a local file.');
     if('BarcodeDetector' in window){
       cam.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
       var v=$('scanVideo');v.srcObject=cam.stream;await v.play();
-      var det;try{det=cam.multi?new BarcodeDetector():new BarcodeDetector({formats:['qr_code','pdf417','code_128']})}catch(e){det=new BarcodeDetector()}cam.on=true;$('scanMsg').textContent=cam.multi?'Point the camera at each script barcode. Keep going; press Close when finished.':'Point the camera at the bundle barcode / QR.';
+      var det;try{det=cam.linear?new BarcodeDetector({formats:['code_128','code_39','code_93','ean_13','ean_8','itf','upc_a','upc_e','codabar']}):new BarcodeDetector({formats:['qr_code','pdf417','code_128']})}catch(e){det=new BarcodeDetector()}cam.on=true;$('scanMsg').textContent=cam.multi?'Point the camera at the long straight barcode (Sl.No.) on each booklet. The QR code is ignored. Keep going; press Close when finished.':'Point the camera at the bundle barcode / QR.';
       (async function loop(){if(!cam.on)return;try{var r=await det.detect(v);if(r.length){gotCode(r[0].rawValue,r[0].format);if(!cam.multi)return}}catch(e){}setTimeout(loop,250)})();
     }else{
       $('scanVideo').style.display='none';$('scanReader').style.display='';
       if(!window.Html5Qrcode)await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js');
-      var F=window.Html5QrcodeSupportedFormats;cam.h5=new Html5Qrcode('scanReader',{formatsToSupport:cam.multi?[F.CODE_128,F.CODE_39,F.EAN_13,F.EAN_8,F.UPC_A,F.ITF,F.CODABAR,F.QR_CODE,F.PDF_417]:[F.QR_CODE,F.PDF_417,F.CODE_128],verbose:false});cam.on=true;
+      var F=window.Html5QrcodeSupportedFormats;cam.h5=new Html5Qrcode('scanReader',{formatsToSupport:cam.linear?[F.CODE_128,F.CODE_39,F.EAN_13,F.EAN_8,F.UPC_A,F.ITF,F.CODABAR]:[F.QR_CODE,F.PDF_417,F.CODE_128],verbose:false});cam.on=true;
       await cam.h5.start({facingMode:'environment'},{fps:10},function(t,res){gotCode(t,res&&res.result&&res.result.format&&res.result.format.formatName)},function(){});
       $('scanMsg').textContent='Point the camera at the bundle barcode / QR.';
     }
@@ -302,14 +304,25 @@ function pmsg(t,c){var m=$('pMsg');m.textContent=t;m.className=c||'sub'}
 $('pClear').onclick=function(){fillForm({});lastLabel=null;pmsg('');sList=[];renderScripts()};
 // ----- scripts inside the bundle -----
 var sList=[];
+function applyWay(){var on=!!$('pWayA').checked;$('pScriptsBox').classList.toggle('hide',!on);try{localStorage.setItem('svceWayA',on?'1':'0')}catch(e){}}
+try{$('pWayA').checked=localStorage.getItem('svceWayA')==='1'}catch(e){}
+$('pWayA').onchange=applyWay;applyWay();
 function smsg2(t,c){var m=$('pScriptMsg');m.textContent=t;m.className=c||'sub'}
 function renderScripts(){
   $('pSN').textContent=sList.length;
   $('pScriptList').innerHTML=sList.map(function(x,i){return'<span class="chip">'+esc(x.code)+(x.branch?' &middot; '+esc(x.branch):'')+'<b data-i="'+i+'">&times;</b></span>'}).join('');
   if(sList.length)$('pCount').value=sList.length;
-  renderBrPick();
+  renderBrPick();renderExpect();
 }
 // branches named on the label / form -> one-tap buttons; plus a count per branch
+function renderExpect(){
+  var e=$('pExpect'),want=lastLabel&&+lastLabel.count>0?+lastLabel.count:0,n=sList.length;
+  if(!want||!n){e.textContent='';e.className='';return}
+  if(n===want){e.className='ok';e.textContent='\u2713 All '+want+' scripts scanned - tap Mark as Packed.';
+    if(cam.on&&cam.multi&&cam.cb===onScriptCode){closeScan();try{$('pSave').scrollIntoView({block:'center'})}catch(x){}}}
+  else if(n<want){e.className='sub';e.textContent=n+' of '+want+' scanned (label says '+want+').'}
+  else{e.className='warn';e.textContent=n+' scanned but the label says '+want+' - check the bundle.'}
+}
 function labelBranches(){return $('pBranch').value.split(/\s*(?:,|;|\/|&|\+|\band\b)\s*/i).map(function(x){return x.trim()}).filter(Boolean)}
 function renderBrPick(){
   var cur=$('pScriptBr').value.trim(),bl=labelBranches(),cnt={};
@@ -364,7 +377,7 @@ async function findScript(t){
 }
 $('fsGo').onclick=function(){var v=$('fsIn').value;$('fsIn').value='';findScript(v)};
 $('fsIn').onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();$('fsGo').onclick()}};
-$('fsCam').onclick=function(){openScan(function(t){findScript(t)},false)};
+$('fsCam').onclick=function(){openScan(function(t){findScript(t)},false,null,true)};
 async function onPackLabel(t,f){
   var rl;try{rl=await resolveLabel(t)}catch(e){pmsg(e.message,'warn');return}
   if(!rl.o){pmsg('Label '+rl.id+' is not in the label register. Ask the admin to upload the register for this exam.','warn');return}
@@ -412,7 +425,8 @@ function showCard(id){
     h+=kv(who)+
       '<div style="border:1px solid var(--bd);border-radius:10px;padding:10px;margin:10px 0"><label>Script check: <b id="vOk">0</b> of <b id="vTot">0</b> verified <span class="sub">(scan every script in this bundle)</span></label>'+
       '<div class="row"><div style="flex:0 0 150px"><label>Branch (for a new script)</label><input id="vBr" list="brList" placeholder="e.g. CSE"></div><input id="vIn" placeholder="Scan or type the script code + Enter"><button data-a="vadd">Add</button><button class="p" data-a="vcam">&#128247; Scan scripts</button></div>'+
-      '<div id="vBrPick" style="margin-top:6px"></div><div id="vMsg" class="sub"></div><div id="vList"></div>'+
+      '<div style="margin:8px 0"><button class="p" data-a="vfiles">&#128193; Check the scanned files (Epson folder)</button><input type="file" id="vFiles" multiple class="hide"> <span class="sub">Select the files the scanner saved for this bundle. Only the file names are read; nothing is uploaded.</span></div>'+
+      '<div id="vDone" style="margin:6px 0;font-weight:600"></div><div id="vBrPick" style="margin-top:6px"></div><div id="vMsg" class="sub"></div><div id="vList"></div>'+
       '<div class="sub">&#10003; scanned &middot; grey = not scanned yet &middot; + = was not packed in this bundle (added now). Tap &times; to take a script out of the bundle.</div></div>'+
       '<p class="sub">Check these details against the label. If anything is wrong, correct it - both the old and the new value are recorded.</p><div class="grid">'+
       SF.map(function(a){return'<div><label>'+NAMES[a[0]]+'</label><input id="'+a[1]+'"'+(a[2]?' type="number" min="0"':'')+' value="'+esc(r[a[0]])+'"></div>'}).join('')+'</div>'+
@@ -434,6 +448,9 @@ function renderV(){
   if(!$('vList'))return;
   var ok=vList.filter(function(x){return x.verified}).length;
   $('vOk').textContent=ok;$('vTot').textContent=vList.length;
+  var rc=rows.find(function(x){return x._id===curId}),want=rc&&+rc.count>0?+rc.count:0,vb=$('vDone');
+  if(vb){if(want&&ok===want&&ok===vList.length){vb.className='ok';vb.textContent='\u2713 All '+want+' scripts verified - tap Mark as Scanned.';if(cam.on&&cam.multi&&cam.cb===onVCode)closeScan()}
+    else if(want&&ok>want){vb.className='warn';vb.textContent=ok+' verified but the packed count was '+want+'.'}else{vb.className='';vb.textContent=''}}
   $('vList').innerHTML=vList.map(function(x,i){
     var mark=(x.added?'+':'')+(x.verified?'\u2713':'');mark=mark?mark+' ':'';var st=x.verified?'':' style="opacity:.55"';
     return'<span class="chip"'+st+'>'+mark+esc(x.code)+(x.branch?' &middot; '+esc(x.branch):'')+'<b data-vi="'+i+'">&times;</b></span>'}).join('');
@@ -445,7 +462,7 @@ async function loadV(){
   var n=++vSeq,l=[];try{l=await call('scriptsOf',curBundleNo())}catch(e){}
   if(n!==vSeq||!$('vList'))return;vList=l;
   var r=rows.find(function(x){return x._id===curId});
-  if(!vList.length)vmsg('No script list was recorded at packing for this bundle - the scripts you scan here will make the list.');
+  if(!vList.length)vmsg('No booklet list was saved at packing. Choose the Epson files below and they will be recorded in this bundle.');
   if(r&&vBranches().length===1&&!$('vBr').value)$('vBr').value=vBranches()[0];
   renderV();
 }
@@ -468,6 +485,37 @@ async function onVCode(t){
   }catch(e){vmsg(e.message,'warn')}
 }
 $('sCard').onkeydown=function(e){if(e.target.id==='vIn'&&e.key==='Enter'){e.preventDefault();var v=e.target.value;e.target.value='';onVCode(v)}};
+// ----- check the files saved by the document scanner (file name = script barcode) -----
+function fileKey(name){var b=String(name||'').replace(/^.*[\\\/]/,'').replace(/\.[A-Za-z0-9]{1,5}$/,'');return b.toUpperCase().replace(/\s+/g,'')}
+function matchFile(name){ // exact barcode, or barcode followed by a separator (e.g. 1234567_001)
+  var k=fileKey(name),hit=null;if(!k)return {key:'',code:''};
+  vList.forEach(function(x){if(k===x.code||(k.indexOf(x.code)===0&&/^[^A-Z0-9]/.test(k.slice(x.code.length))))hit=x.code});
+  return {key:k,code:hit||''};
+}
+async function checkFiles(files){
+  var b=curBundleNo(),names=[].slice.call(files).map(function(f){return f.name}).filter(function(n){return!/^(thumbs\.db|desktop\.ini)$/i.test(n)});
+  if(!names.length){vmsg('No files chosen.','warn');return}
+  var good=[],unk=[];names.forEach(function(n){var m=matchFile(n);if(m.code)good.push(m.code);else if(m.key)unk.push(m.key.replace(/_\d{1,3}$/,''))});
+  try{
+    vmsg('Checking '+names.length+' file(s)…');
+    var empty=!vList.length;
+    if(empty&&vBranches().length>1&&!$('vBr').value.trim()){vmsg('This bundle has several branches - tap the branch first, then choose only that branch\'s files.','warn');return}
+    var r=await call('scriptsVerifyMany',b,good.concat(unk),$('vBr').value.trim(),empty);
+    if(empty){await loadV();vmsg(r.added.length+' booklet(s) recorded in bundle '+b+' from the scanned files.'+(r.unknown.length?' Not added (already in another bundle): '+r.unknown.map(function(u){return u.code+' ('+u.bundle+')'}).join(', ')+'.':''),r.unknown.length?'warn':'ok');return}
+    await loadV();
+    var left=vList.filter(function(x){return!x.verified}).map(function(x){return x.code});
+    var msg=r.ok.length+' matched'+(r.again.length?', '+r.again.length+' already ticked':'')+'. '+(left.length?left.length+' still missing.':'None missing.');
+    if(r.unknown.length){
+      var mine=r.unknown.filter(function(u){return!u.bundle}),other=r.unknown.filter(function(u){return u.bundle});
+      msg+=' '+r.unknown.length+' file(s) are not in this bundle: '+r.unknown.slice(0,8).map(function(u){return u.code+(u.bundle?' (bundle '+u.bundle+')':'')}).join(', ')+(r.unknown.length>8?' …':'')+'.';
+      vmsg(msg,'warn');
+      if(mine.length&&confirm(mine.length+' scanned file(s) are not in this bundle:\n'+mine.slice(0,10).map(function(u){return u.code}).join(', ')+(mine.length>10?' …':'')+'\n\nAdd them to bundle '+b+'? (They will be marked as added at scanning.)')){
+        var r2=await call('scriptsVerifyMany',b,mine.map(function(u){return u.code}),$('vBr').value.trim(),true);await loadV();
+        vmsg(msg+' Added '+r2.added.length+' to this bundle.','warn')}
+    }else vmsg(msg,left.length?'warn':'ok');
+  }catch(e){vmsg(e.message,'warn')}
+}
+$('sCard').onchange=function(e){if(e.target.id==='vFiles'){var f=e.target.files;checkFiles(f);e.target.value=''}};
 $('sCard').oninput=function(e){if(e.target.id==='sCnt')e.target.dataset.touched='1';if(e.target.id==='vBr')renderV()};
 $('sCard').onclick=async function(e){
   var rm=e.target.closest('b[data-vi]');
@@ -475,6 +523,7 @@ $('sCard').onclick=async function(e){
     try{await call('scriptRemove',curBundleNo(),x.code,'Scanning');vList.splice(+rm.dataset.vi,1);renderV();vmsg('Removed '+x.code+'.')}catch(err){vmsg(err.message,'warn')}return}
   var b=e.target.closest('button');if(!b)return;var r=rows.find(function(x){return x._id===curId});if(!r)return;
   if(b.dataset.a==='vadd'){var iv=$('vIn').value;$('vIn').value='';onVCode(iv);return}
+  if(b.dataset.a==='vfiles'){$('vFiles').click();return}
   if(b.dataset.a==='vcam'){openScan(onVCode,true,'vBr');return}
   if(b.dataset.a==='vbr'){$('vBr').value=b.dataset.br;renderV();$('vIn').focus();return}
   if(b.dataset.a==='start'){try{await startScan(curId)}catch(err){smsg(err.message);return}smsg('Scanning started for '+r.bundle);showCard(curId)}
