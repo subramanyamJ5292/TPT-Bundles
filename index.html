@@ -49,6 +49,7 @@ th{color:var(--mu);font-weight:600}
   <h1>Answer Script Bundles</h1>
   <p class="sub" id="gateMsg">Signing you in…</p>
   <div id="codeBox" class="hide" style="text-align:left">
+    <div id="gGoogleBox" class="hide" style="text-align:center;margin-bottom:12px"><div id="gGoogle" style="display:inline-block"></div><div class="sub" style="margin-top:8px">or use your e-mail</div></div>
     <label>Your e-mail address (the one the admin added)</label>
     <input id="gMail" type="email" autocomplete="email" placeholder="name@gmail.com">
     <p><button class="p" id="gSend">Send me a code</button> <button id="gHave">I already have a code</button></p>
@@ -116,6 +117,9 @@ th{color:var(--mu);font-weight:600}
     <p style="display:flex;gap:16px;flex-wrap:wrap;align-items:center"><label style="display:inline-flex;gap:5px;align-items:center;margin:0"><input type="checkbox" id="uPack" style="width:auto"> Packing</label><label style="display:inline-flex;gap:5px;align-items:center;margin:0"><input type="checkbox" id="uScan" style="width:auto"> Scanning</label><label style="display:inline-flex;gap:5px;align-items:center;margin:0"><input type="checkbox" id="uView" style="width:auto"> View all information</label><label style="display:inline-flex;gap:5px;align-items:center;margin:0"><input type="checkbox" id="uAdmin" style="width:auto"> Admin</label></p>
     <p><button class="p" id="uAdd">Add person</button> <span class="sub" id="uMsg"></span></p>
 
+    <h2 style="margin-top:18px">Sign-in method</h2>
+    <p class="sub">How staff get in. <b>Code</b>: a 6-digit code proves the e-mail is really theirs (safest). <b>E-mail only</b>: an address you added is let in as soon as it is typed; anyone else sees "Contact your admin". Admin accounts always use a code, and every e-mail-only sign-in is written to the Changes sheet.</p>
+    <p><select id="sgSel" style="width:auto"><option value="code">Code (safest)</option><option value="email">E-mail only (quick)</option></select> <span class="sub" id="sgMsg"></span></p>
     <h2 style="margin-top:18px">Check sign-in e-mail</h2>
     <p class="sub">If someone says the sign-in code never arrives, type their address here. It tells you whether they are on the list and sends them a test e-mail.</p>
     <div class="row"><input id="mcIn" placeholder="name@gmail.com"><button class="p" id="mcGo">Check &amp; send test</button></div>
@@ -153,7 +157,7 @@ th{color:var(--mu);font-weight:600}
     <p><button id="scanCancel">Close</button></p>
   </div>
 </div>
-<script>var INITIAL_ID = ""; var API_URL = "https://script.google.com/macros/s/AKfycbwCygQrxLdn7tNCehfS64l0B2jWEi4uBZYn5tO_eDjpnwhdr2k_vTP38oAyG1ILLLk/exec";
+<script>var INITIAL_ID = ""; var API_URL = "https://script.google.com/macros/s/AKfycbwCygQrxLdn7tNCehfS64l0B2jWEi4uBZYn5tO_eDjpnwhdr2k_vTP38oAyG1ILLLk/exec"; var GOOGLE_CLIENT_ID = "";
 try{if(!INITIAL_ID)INITIAL_ID=(new URLSearchParams(location.search).get("id")||"").toUpperCase().replace(/[^A-Z0-9-]/g,"").slice(0,40)}catch(e){}</script>
 <script>
 (function(){
@@ -168,7 +172,7 @@ function idOf(b){return 'b'+String(b).replace(/[^A-Za-z0-9]/g,'')}
 function busyOff(){inflight--;if(inflight<=0){inflight=0;$('busy').classList.add('hide')}}
 // Hosted mode (page lives on GitHub Pages etc.): talk to the Apps Script web app over HTTPS instead of google.script.run
 function callHttp(fn,a,quiet){
-  var direct=(fn==='requestCode'||fn==='verifyCode'||fn==='logout'),fin=function(){if(!quiet)busyOff()};
+  var direct=(fn==='requestCode'||fn==='verifyCode'||fn==='logout'||fn==='quickSignIn'||fn==='googleSignIn'),fin=function(){if(!quiet)busyOff()};
   return fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},redirect:'follow',body:JSON.stringify({fn:fn,token:direct?'':TOKEN,args:a})})
     .then(function(r){return r.text()},function(){throw new Error('Could not reach the server. Check the internet connection and try again.')})
     .then(function(t){
@@ -184,7 +188,7 @@ function call(fn){
     var gr=google.script.run
       .withSuccessHandler(function(v){if(!quiet)busyOff();res(v)})
       .withFailureHandler(function(e){if(!quiet)busyOff();rej(new Error(String(e&&e.message?e.message:e).replace(/^(Error|Exception): /,'')))});
-    var direct=(fn==='requestCode'||fn==='verifyCode'||fn==='logout');
+    var direct=(fn==='requestCode'||fn==='verifyCode'||fn==='logout'||fn==='quickSignIn'||fn==='googleSignIn');
     if(typeof gr[direct?fn:'api']!=='function'){if(!quiet)busyOff();rej(new Error('The server code (Code.gs) is out of date ("'+fn+'"). Paste the new Code.gs, save, then Deploy > Manage deployments > New version.'));return}
     if(direct)gr[fn].apply(gr,a);else gr.api(TOKEN,fn,a);
   });
@@ -605,7 +609,7 @@ var MODENAME={pack:'Packing',scan:'Scanning',view:'View all',admin:'Admin'};
 function roleUI(){
   $('me').textContent=me.email+(me.designation||me.dept?' \u00B7 '+[me.designation,me.dept].filter(Boolean).join(', '):'')+' ('+roleLabel(role)+')';
   $('goPack').classList.toggle('hide',!role.pack);$('goScan').classList.toggle('hide',!role.scan);$('goView').classList.toggle('hide',!role.view);$('goAdmin').classList.toggle('hide',!role.admin);
-  $('uAdmin').disabled=!isFixed(me.email);
+  $('uAdmin').disabled=!isFixed(me.email);$('sgSel').value=SIGNIN;$('sgSel').disabled=!isFixed(me.email);
   $('csvBtn').classList.toggle('hide',!role.view);$('recTitle').textContent=role.view?'All bundles':'My entries';
 }
 function setUsers(list){users={};list.forEach(function(r){users[String(r.email).toLowerCase()]={admin:!!r.admin,pack:!!r.pack,scan:!!r.scan,view:!!r.view,dept:r.dept||'',designation:r.designation||''}})}
@@ -709,6 +713,11 @@ $('uExp').onclick=async function(){
   }
 };
 
+$('sgSel').onchange=async function(){
+  var v=this.value,m=$('sgMsg');
+  if(v==='email'&&!confirm('Switch to E-MAIL ONLY sign-in?\n\nAnyone who types an address you added is let in as that person without a code. Admin accounts still need a code.'))return(this.value=SIGNIN);
+  try{SIGNIN=await call('setSigninMode',v);m.textContent='Saved \u2713';m.className='ok'}catch(e){this.value=SIGNIN;m.textContent=e.message;m.className='warn'}
+};
 $('mcCode').onclick=async function(){
   var o=$('mcOut');o.className='sub';o.textContent='Making a code…';
   try{var r=await call('issueCode',$('mcIn').value);o.className='ok';
@@ -807,21 +816,45 @@ async function start(){
     ADMIN_EMAILS=r.fixed||[];
     if(!r.email){
       if(TOKEN){TOKEN='';try{localStorage.removeItem('svceTok')}catch(e){}}
-      gate('Sign in with your e-mail address. A 6-digit code will be sent to it (only for addresses the admin has added).');
+      SIGNIN=r.signin||'code';applyGate();initGoogle();
       $('codeBox').classList.remove('hide');return}
     $('codeBox').classList.add('hide');
     if(!r.role||!modesFor(r.role).length){gate('Access denied: '+r.email+' has not been given access. Ask the admin.');return}
-    me={email:r.email};role=r.role;
+    SIGNIN=r.signin||'code';me={email:r.email};role=r.role;
     $('gate').classList.add('hide');$('app').classList.remove('hide');roleUI();
     await poll();
     var ms=modesFor(role);setMode(ms.length===1?ms[0]:'');
     pollTimer=setInterval(poll,30000);
   }catch(e){gate('Could not start: '+e.message)}
 }
+var SIGNIN='code';
+function initGoogle(){
+  if(!API_URL||!GOOGLE_CLIENT_ID||/PASTE/.test(GOOGLE_CLIENT_ID))return;
+  var setup=function(){try{
+    google.accounts.id.initialize({client_id:GOOGLE_CLIENT_ID,callback:onGoogleCred,auto_select:false});
+    google.accounts.id.renderButton($('gGoogle'),{theme:'outline',size:'large',text:'signin_with',shape:'pill',width:260});
+    $('gGoogleBox').classList.remove('hide')}catch(e){}};
+  if(window.google&&google.accounts&&google.accounts.id)setup();else loadScript('https://accounts.google.com/gsi/client').then(setup).catch(function(){});
+}
+async function onGoogleCred(resp){
+  gerr('');
+  try{var q=await call('googleSignIn',resp&&resp.credential);
+    TOKEN=q.token;try{localStorage.setItem('svceTok',TOKEN)}catch(x){}gate('Signing you in…');$('codeBox').classList.add('hide');await start()}
+  catch(err){gerr(err.message)}
+}
+function applyGate(){
+  if(SIGNIN==='email'){gate('Type your e-mail address to sign in. Only addresses added by the admin can enter.');$('gSend').textContent='Sign in';$('gHave').textContent='I have a code'}
+  else{gate('Sign in with your e-mail address. A 6-digit code will be sent to it (only for addresses the admin has added).');$('gSend').textContent='Send me a code';$('gHave').textContent='I already have a code'}
+}
 function gerr(t){$('gErr').textContent=t||''}
 $('gSend').onclick=async function(){
   var e=$('gMail').value.trim().toLowerCase();gerr('');
   if(e.indexOf('@')<1){gerr('Enter your e-mail address.');return}
+  if(SIGNIN==='email'){
+    try{var q=await call('quickSignIn',e);
+      if(q&&q.token){TOKEN=q.token;try{localStorage.setItem('svceTok',TOKEN)}catch(x){}gate('Signing you in…');$('codeBox').classList.add('hide');await start();return}
+      gerr('Admin accounts sign in with a code.')}catch(err){gerr(err.message);return}
+  }
   try{await call('requestCode',e);$('gCodeRow').classList.remove('hide');gerr('If this address has access, a code was sent. Check your inbox (and spam). It works for 10 minutes.');$('gCode').focus()}
   catch(err){gerr(err.message)}
 };
@@ -836,7 +869,7 @@ $('gVerify').onclick=async function(){
 function signOutToken(){
   call('logout',TOKEN).catch(function(){});TOKEN='';try{localStorage.removeItem('svceTok')}catch(e){}
   if(pollTimer){clearInterval(pollTimer);pollTimer=null}me=null;role=null;rows=[];$('app').classList.add('hide');$('gate').classList.remove('hide');
-  gate('Signed out. Enter your e-mail address to sign in again.');$('codeBox').classList.remove('hide');$('gCodeRow').classList.add('hide');gerr('');
+  applyGate();gate('Signed out. Enter your e-mail address to sign in again.');$('codeBox').classList.remove('hide');$('gCodeRow').classList.add('hide');gerr('');
 }
 async function switchAccount(){
   if(TOKEN){signOutToken();return}
