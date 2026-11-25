@@ -206,11 +206,17 @@ th{color:var(--mu);font-weight:600}
 
   <!-- ON-SCREEN AUDIT LOGS IN VIEW ALL MODE -->
   <div id="auditPanel" class="card hide">
-    <h2>Detailed Audit Logs (Script Map &amp; Field Changes)</h2>
-    <p class="sub">Clicking <b>Export Excel (All)</b> at the top downloads a complete multi-sheet Excel workbook containing <b>Bundles</b>, <b>Script Map</b>, and <b>Changes</b>. You can also view them live below:</p>
+    <h2>Detailed Audit Logs (Script Map, Field Changes &amp; User Logs)</h2>
+    <p class="sub">Clicking <b>Export Excel (All)</b> at the top downloads a complete multi-sheet Excel workbook containing <b>Bundles</b>, <b>Script Map</b>, <b>Changes</b>, and <b>User Logs</b>. You can also view them live below:</p>
     <p style="display:flex;gap:8px;flex-wrap:wrap">
       <button id="btnLoadScripts">Load Script Map (All Booklets)</button>
       <button id="btnLoadChanges">Load Changes Log (Edit History)</button>
+      <button id="btnLoadUserLogs">Load User Logs (Sign-ins &amp; Access)</button>
+    </p>
+    <p class="sub" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:6px 0">
+      <label style="display:flex;gap:6px;align-items:center;margin:0;font-weight:700"><input type="checkbox" id="liveChk" style="width:auto;margin:0"> Live updates</label>
+      <select id="liveSec" style="width:auto"><option value="15">every 15 sec</option><option value="30">every 30 sec</option><option value="60">every 1 min</option></select>
+      <span id="liveStamp">Tick to keep the open log tables updating by themselves.</span>
     </p>
 
     <div id="scriptMapWrap" class="hide" style="margin-top:12px">
@@ -232,6 +238,17 @@ th{color:var(--mu);font-weight:600}
       <div class="tw"><table style="min-width:820px">
         <thead><tr><th>Time</th><th>Bundle</th><th>Subject</th><th>Stage</th><th>Field</th><th>Before</th><th>Modified To</th><th>Changed By</th><th>Basis</th></tr></thead>
         <tbody id="chBody"></tbody>
+      </table></div>
+    </div>
+
+    <div id="userLogsWrap" class="hide" style="margin-top:12px">
+      <div class="row" style="margin-bottom:8px">
+        <div><label>Filter User Logs (user / event / details)</label><input id="ulFilter" placeholder="Type to filter user logs..."></div>
+      </div>
+      <p class="sub" id="ulCount"></p>
+      <div class="tw"><table style="min-width:720px">
+        <thead><tr><th>Time</th><th>User</th><th>Event</th><th>Details</th><th>Done By</th></tr></thead>
+        <tbody id="ulBody"></tbody>
       </table></div>
     </div>
   </div>
@@ -275,7 +292,7 @@ try{if(!INITIAL_ID)INITIAL_ID=(new URLSearchParams(location.search).get("id")||"
 var $=function(i){return document.getElementById(i)};
 var TOKEN='';try{TOKEN=localStorage.getItem('svceTok')||''}catch(e){}
 var me=null,rows=[],mode='',curId='',lastLabel=null,pollTimer=null,role=null,users={},ADMIN_EMAILS=[],inflight=0;
-var auditCache={scripts:[],changes:[]};
+var auditCache={scripts:[],changes:[],userLogs:[]};var liveQuiet=false,liveBusy=false,liveTimer=null;
 var pendingTotp={challengeId:'',email:''};
 var fixedAdminSec='';
 function gate(m){$('gateMsg').textContent=m}
@@ -298,7 +315,7 @@ function callHttp(fn,a,quiet){
     .then(function(v){fin();return v},function(e){fin();throw e});
 }
 function call(fn){
-  var a=[].slice.call(arguments,1),quiet=(fn==='poll');
+  var a=[].slice.call(arguments,1),quiet=(fn==='poll'||liveQuiet);
   if(!quiet){inflight++;$('busy').classList.remove('hide')}
   if(API_URL)return callHttp(fn,a,quiet);
   return new Promise(function(res,rej){
@@ -708,6 +725,7 @@ $('csvBtn').onclick=async function(){
     var allData=await call('exportAllData');
     auditCache.scripts=allData.scripts||[];
     auditCache.changes=allData.changes||[];
+    auditCache.userLogs=allData.userLogs||[];
     var bList=allData.bundles||rows;
 
     var bHeaders=['Bundle No','Date','Subject Code','Subject Name','Branch','Regulation','Examination','Attended Strength','Scripts in Bundle','MP Count','MP Roll Numbers','Status','Packed By','Packed At','Scan Started By','Scan Started At','Scanned By','Scanned At','Scanned Count','Label Edited','Packing Edits','Scanning Edits','Packing Remarks','Scanning Remarks'];
@@ -724,6 +742,10 @@ $('csvBtn').onclick=async function(){
       auditCache.changes.map(function(c){return[c.time,c.bundle,c.code,c.stage,c.field,c.before,c.after,c.changedBy,c.basis]})
     );
 
+    var uRows=[['Time','User','Event','Details','Done By']].concat(
+      auditCache.userLogs.map(function(u){return[u.time,u.user,u.event,u.details,u.by]})
+    );
+
     var d=new Date(),stamp=d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());
     try{
       await loadXlsx();
@@ -731,6 +753,7 @@ $('csvBtn').onclick=async function(){
       XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(bRows),'Bundles');
       XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(sRows),'Script Map');
       XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(cRows),'Changes');
+      XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(uRows),'User Logs');
       XLSX.writeFile(wb,'Answer_Script_Bundles_Report_'+stamp+'.xlsx');
     }catch(xlErr){
       var q=function(v){return'"'+String(v==null?'':v).replace(/"/g,'""')+'"'};
@@ -769,7 +792,7 @@ function renderChangesTable(){
 $('btnLoadScripts').onclick=async function(){
   try{
     var all=await call('exportAllData');
-    auditCache.scripts=all.scripts||[];auditCache.changes=all.changes||[];
+    auditCache.scripts=all.scripts||[];auditCache.changes=all.changes||[];auditCache.userLogs=all.userLogs||[];
     $('scriptMapWrap').classList.remove('hide');
     renderScriptMapTable();
   }catch(e){alert(e.message)}
@@ -777,11 +800,58 @@ $('btnLoadScripts').onclick=async function(){
 $('btnLoadChanges').onclick=async function(){
   try{
     var all=await call('exportAllData');
-    auditCache.scripts=all.scripts||[];auditCache.changes=all.changes||[];
+    auditCache.scripts=all.scripts||[];auditCache.changes=all.changes||[];auditCache.userLogs=all.userLogs||[];
     $('changesWrap').classList.remove('hide');
     renderChangesTable();
   }catch(e){alert(e.message)}
 };
+function renderUserLogs(){
+  var q=($('ulFilter').value||'').toLowerCase().trim();
+  var all=auditCache.userLogs.slice().reverse();   // newest first
+  var list=all.filter(function(u){return !q||[u.user,u.event,u.details,u.by].join(' ').toLowerCase().indexOf(q)>=0});
+  $('ulCount').textContent='Showing '+Math.min(list.length,500)+' of '+all.length+' user log entries (newest first)';
+  $('ulBody').innerHTML=list.slice(0,500).map(function(u){
+    var bad=/failed|blocked/i.test(u.event);
+    return'<tr><td class="sub">'+esc(u.time)+'</td><td><b>'+esc(u.user)+'</b></td><td'+(bad?' style="color:#b00020;font-weight:700"':'')+'>'+esc(u.event)+'</td><td class="sub">'+esc(u.details)+'</td><td class="sub">'+esc(u.by)+'</td></tr>';
+  }).join('')+(list.length>500?'<tr><td colspan="5" class="sub">Showing the latest 500 rows. Use the filter above or click Export Excel (All) for the full log.</td></tr>':'');
+}
+$('btnLoadUserLogs').onclick=async function(){
+  try{
+    var all=await call('exportAllData');
+    auditCache.scripts=all.scripts||[];auditCache.changes=all.changes||[];auditCache.userLogs=all.userLogs||[];
+    $('userLogsWrap').classList.remove('hide');
+    renderUserLogs();
+  }catch(e){alert(e.message)}
+};
+$('ulFilter').oninput=renderUserLogs;
+
+// ===== live updates for the open log tables (View all mode) =====
+function hasOpen(id){return !$(id).classList.contains('hide')}
+async function liveRefresh(){
+  if(liveBusy||!$('liveChk').checked||mode!=='view'||!role||!role.view||document.hidden)return;
+  if(!hasOpen('scriptMapWrap')&&!hasOpen('changesWrap')&&!hasOpen('userLogsWrap')){$('liveStamp').textContent='Open a log table above (Load ...) and it will update by itself.';return}
+  liveBusy=true;liveQuiet=true;
+  try{
+    var all=await call('exportAllData');
+    auditCache.scripts=all.scripts||[];auditCache.changes=all.changes||[];auditCache.userLogs=all.userLogs||[];
+    if(hasOpen('scriptMapWrap'))renderScriptMapTable();
+    if(hasOpen('changesWrap'))renderChangesTable();
+    if(hasOpen('userLogsWrap'))renderUserLogs();
+    $('liveStamp').textContent='\u25CF Live - updated '+new Date().toLocaleTimeString();
+  }catch(e){$('liveStamp').textContent='\u26A0 Live update failed ('+e.message+'). Will retry.'}
+  finally{liveQuiet=false;liveBusy=false}
+}
+function applyLive(){
+  if(liveTimer){clearInterval(liveTimer);liveTimer=null}
+  var on=$('liveChk').checked,sec=+$('liveSec').value||30;
+  try{localStorage.setItem('svceLive',on?sec:'0')}catch(e){}
+  if(!on){$('liveStamp').textContent='Live updates are off.';return}
+  $('liveStamp').textContent='Live: checking every '+sec+' sec...';
+  liveRefresh();liveTimer=setInterval(liveRefresh,sec*1000);
+}
+$('liveChk').onchange=applyLive;$('liveSec').onchange=applyLive;
+document.addEventListener('visibilitychange',function(){if(!document.hidden&&$('liveChk').checked)liveRefresh()});
+try{var lv=+localStorage.getItem('svceLive')||0;if(lv){$('liveSec').value=String(lv);$('liveChk').checked=true;applyLive()}}catch(e){}
 $('smFilter').oninput=renderScriptMapTable;
 $('chFilter').oninput=renderChangesTable;
 
