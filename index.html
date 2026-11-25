@@ -45,6 +45,8 @@ th{color:var(--mu);font-weight:600}
 .dev-badge{display:inline-block;padding:6px 15px;border-radius:10px;background:rgba(31,95,191,.10);border:1px solid rgba(31,95,191,.28);color:var(--ac);font-weight:700;letter-spacing:.2px}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .dev-badge{background:#25313d;border-color:#445568;color:#7cb0ff}}
 :root[data-theme="dark"] .dev-badge{background:#25313d;border-color:#445568;color:#7cb0ff}
+.qr-box{background:#fff;padding:14px;border-radius:10px;display:inline-block;border:1px solid #cbd5e1;margin:10px 0}
+.secret-pill{font-family:monospace;font-size:15px;font-weight:700;letter-spacing:2px;background:var(--bg);border:1px solid var(--bd);padding:6px 10px;border-radius:6px;display:inline-block;margin:6px 0;user-select:all}
 </style>
 </head>
 <body>
@@ -56,7 +58,7 @@ th{color:var(--mu);font-weight:600}
   <div id="codeBox" class="hide" style="text-align:left">
     <div id="gGoogleBox" class="hide" style="text-align:center;margin-bottom:12px"><div id="gGoogle" style="display:inline-block"></div><div class="sub" style="margin-top:8px">or use your e-mail / mobile</div></div>
     
-    <!-- OPTION 1: EMAIL SIGN-IN -->
+    <!-- STEP 1A: EMAIL SIGN-IN -->
     <div id="emailLoginSec">
       <label>Your e-mail address (registered by admin)</label>
       <input id="gMail" type="email" autocomplete="email" placeholder="name@svce.edu.in or name@gmail.com">
@@ -68,12 +70,30 @@ th{color:var(--mu);font-weight:600}
       <p style="margin:6px 0 0"><button type="button" class="linkBtn" id="toMobileBtn">Email not responding? Verify using Mobile Number instead</button></p>
     </div>
 
-    <!-- OPTION 2: MOBILE NUMBER FALLBACK -->
+    <!-- STEP 1B: MOBILE NUMBER FALLBACK -->
     <div id="mobileLoginSec" class="hide">
       <label>Registered 10-digit Mobile Number</label>
       <input id="gMobile" type="tel" inputmode="numeric" maxlength="10" placeholder="e.g. 9876543210">
-      <p><button class="p" id="gMobileBtn">Verify &amp; Sign in with Mobile</button></p>
+      <p><button class="p" id="gMobileBtn">Continue with Mobile</button></p>
       <p style="margin:6px 0 0"><button type="button" class="linkBtn" id="toEmailBtn">&larr; Back to E-mail Sign-in</button></p>
+    </div>
+
+    <!-- STEP 2: GOOGLE AUTHENTICATOR 6-DIGIT TOTP VERIFICATION -->
+    <div id="totpLoginSec" class="hide">
+      <div id="totpSetupBox" class="hide" style="text-align:center;border:1px solid var(--bd);border-radius:8px;padding:10px;margin-bottom:10px">
+        <div style="font-weight:600;margin-bottom:4px">First-Time Google Authenticator Setup</div>
+        <div class="sub">Open the <b>Google Authenticator</b> app on your phone, tap <b>+</b> &rarr; <b>Scan a QR code</b>:</div>
+        <div class="qr-box"><img id="totpSetupQr" alt="QR Code" style="width:180px;height:180px;display:block"></div>
+        <div class="sub">Or choose <b>Enter a setup key</b> and type:</div>
+        <div class="secret-pill" id="totpSetupKey"></div>
+      </div>
+
+      <label>6-digit code from <b>Google Authenticator</b> app (<span id="totpWho"></span>)</label>
+      <input id="gTotpCode" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="000000" style="font-size:20px;letter-spacing:4px;text-align:center;font-weight:700">
+      <p style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="p" id="gTotpVerifyBtn" style="flex:1">Verify &amp; Enter Portal</button>
+      </p>
+      <p style="margin:6px 0 0"><button type="button" class="linkBtn" id="totpBackBtn">&larr; Cancel / Use different login</button></p>
     </div>
 
     <p class="msg" id="gErr"></p>
@@ -127,8 +147,10 @@ th{color:var(--mu);font-weight:600}
 
   <div id="adminPanel" class="card hide">
     <h2>Admin &ndash; who can use this</h2>
-    <p class="sub">Fixed admins (set in the script): <span id="fixedAdmins"></span></p>
-    <div class="tw"><table style="min-width:820px"><thead><tr><th>E-mail</th><th>Mobile (10-digit)</th><th>Dept</th><th>Designation</th><th>Admin</th><th>Packing</th><th>Scanning</th><th>View all</th><th></th></tr></thead><tbody id="ub"></tbody></table></div>
+    <p class="sub">Fixed admins (set in the script): <span id="fixedAdmins"></span>
+      &nbsp;<button class="s" id="myTotpBtn" style="margin-left:8px">&#128272; My Google Authenticator QR</button>
+    </p>
+    <div class="tw"><table style="min-width:900px"><thead><tr><th>E-mail</th><th>Mobile (10-digit)</th><th>Dept</th><th>Designation</th><th>Google Auth</th><th>Admin</th><th>Packing</th><th>Scanning</th><th>View all</th><th></th></tr></thead><tbody id="ub"></tbody></table></div>
     <p class="sub" id="uEmpty">No other people added yet.</p>
     <h2 style="margin-top:14px">Upload the access list from Excel</h2>
     <p class="sub">Columns: Email &nbsp;|&nbsp; Mobile &nbsp;|&nbsp; Dept &nbsp;|&nbsp; Designation &nbsp;|&nbsp; Admin &nbsp;|&nbsp; Packing &nbsp;|&nbsp; Scanning &nbsp;|&nbsp; View all &nbsp;(type Yes where access is allowed). Use Export to start from the current list.</p>
@@ -144,9 +166,20 @@ th{color:var(--mu);font-weight:600}
     <p style="display:flex;gap:16px;flex-wrap:wrap;align-items:center"><label style="display:inline-flex;gap:5px;align-items:center;margin:0"><input type="checkbox" id="uPack" style="width:auto"> Packing</label><label style="display:inline-flex;gap:5px;align-items:center;margin:0"><input type="checkbox" id="uScan" style="width:auto"> Scanning</label><label style="display:inline-flex;gap:5px;align-items:center;margin:0"><input type="checkbox" id="uView" style="width:auto"> View all information</label><label style="display:inline-flex;gap:5px;align-items:center;margin:0"><input type="checkbox" id="uAdmin" style="width:auto"> Admin</label></p>
     <p><button class="p" id="uAdd">Add person</button> <span class="sub" id="uMsg"></span></p>
 
+    <h2 style="margin-top:18px">Google Authenticator (2-Step Verification)</h2>
+    <p class="sub">Works offline with the <b>Google Authenticator</b> mobile app (free, zero SMS cost). Click <b>Setup QR</b> next to any staff user above to show their QR code for scanning.</p>
+    <p>
+      <select id="auth2faSel" style="width:auto">
+        <option value="optional">Active for users with QR setup (Optional)</option>
+        <option value="required">Mandatory for ALL staff users</option>
+        <option value="off">Disabled (Direct login only)</option>
+      </select>
+      <span class="sub" id="auth2faMsg"></span>
+    </p>
+
     <h2 style="margin-top:18px">Sign-in method</h2>
-    <p class="sub"><b>Direct (E-mail / Mobile)</b>: registered staff sign in immediately using their e-mail or 10-digit mobile number without waiting for OTP emails (recommended). <b>Code</b>: sends a 6-digit OTP to e-mail.</p>
-    <p><select id="sgSel" style="width:auto"><option value="email">Direct (E-mail / Mobile - No OTP)</option><option value="code">Code (6-digit OTP via E-mail)</option></select> <span class="sub" id="sgMsg"></span></p>
+    <p class="sub"><b>Direct (E-mail / Mobile)</b>: registered staff sign in immediately using their e-mail or 10-digit mobile number (followed by Google Authenticator if enabled). <b>Code</b>: sends a 6-digit OTP to e-mail.</p>
+    <p><select id="sgSel" style="width:auto"><option value="email">Direct (E-mail / Mobile - No Email OTP)</option><option value="code">Code (6-digit OTP via E-mail)</option></select> <span class="sub" id="sgMsg"></span></p>
     <h2 style="margin-top:18px">Check sign-in e-mail / generate manual code</h2>
     <div class="row"><input id="mcIn" placeholder="name@gmail.com"><button class="p" id="mcGo">Check &amp; send test</button></div>
     <p><button id="mcCode">Show a 10-min code for this address</button></p>
@@ -206,6 +239,24 @@ th{color:var(--mu);font-weight:600}
 </div>
 <footer class="footer"><span>Developed by</span><span class="dev-badge">Subramanyam J</span></footer>
 </div>
+
+<!-- GOOGLE AUTHENTICATOR QR MODAL (ADMIN) -->
+<div id="totpModal" class="hide" style="position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:55;display:flex;align-items:center;justify-content:center;padding:12px">
+  <div class="card" style="max-width:420px;width:100%;margin:0;text-align:center">
+    <h2>Google Authenticator Setup</h2>
+    <p class="sub" id="tmEmail" style="font-weight:600;color:var(--tx)"></p>
+    <p class="sub">1. Open the <b>Google Authenticator</b> app on the staff member's phone.<br>2. Tap <b>+</b> &rarr; <b>Scan a QR code</b> and scan below:</p>
+    <div class="qr-box"><img id="tmQrImg" alt="Authenticator QR" style="width:200px;height:200px;display:block"></div>
+    <p class="sub" style="margin-bottom:2px">Or enter this setup key manually (Time-based):</p>
+    <div class="secret-pill" id="tmSecret"></div>
+    <p style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px">
+      <button id="tmRegen">Generate New Key</button>
+      <button id="tmDisable" style="color:var(--er)">Disable 2FA</button>
+      <button class="p" id="tmClose">Done</button>
+    </p>
+  </div>
+</div>
+
 <div id="scanBox" class="hide" style="position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:50;display:flex;align-items:center;justify-content:center;padding:12px">
   <div class="card" style="max-width:420px;width:100%;margin:0">
     <h2 id="scanTitle">Scan bundle code</h2>
@@ -225,14 +276,20 @@ var $=function(i){return document.getElementById(i)};
 var TOKEN='';try{TOKEN=localStorage.getItem('svceTok')||''}catch(e){}
 var me=null,rows=[],mode='',curId='',lastLabel=null,pollTimer=null,role=null,users={},ADMIN_EMAILS=[],inflight=0;
 var auditCache={scripts:[],changes:[]};
+var pendingTotp={challengeId:'',email:''};
+var fixedAdminSec='';
 function gate(m){$('gateMsg').textContent=m}
 function esc(s){var d=document.createElement('div');d.textContent=s==null?'':String(s);return d.innerHTML.replace(/"/g,'&quot;')}
 function fmt(t){return t?new Date(t).toLocaleString([],{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}):''}
 function idOf(b){return 'b'+String(b).replace(/[^A-Za-z0-9]/g,'')}
 function busyOff(){inflight--;if(inflight<=0){inflight=0;$('busy').classList.add('hide')}}
 
+function qrImgUrl(data){
+  return 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=4&data='+encodeURIComponent(data);
+}
+
 function callHttp(fn,a,quiet){
-  var direct=(fn==='requestCode'||fn==='verifyCode'||fn==='logout'||fn==='quickSignIn'||fn==='mobileSignIn'||fn==='googleSignIn'),fin=function(){if(!quiet)busyOff()};
+  var direct=(fn==='requestCode'||fn==='verifyCode'||fn==='logout'||fn==='quickSignIn'||fn==='mobileSignIn'||fn==='verifyTotp'||fn==='googleSignIn'),fin=function(){if(!quiet)busyOff()};
   return fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},redirect:'follow',body:JSON.stringify({fn:fn,token:direct?'':TOKEN,args:a})})
     .then(function(r){return r.text()},function(){throw new Error('Could not reach the server. Check the internet connection and try again.')})
     .then(function(t){
@@ -248,7 +305,7 @@ function call(fn){
     var gr=google.script.run
       .withSuccessHandler(function(v){if(!quiet)busyOff();res(v)})
       .withFailureHandler(function(e){if(!quiet)busyOff();rej(new Error(String(e&&e.message?e.message:e).replace(/^(Error|Exception): /,'')))});
-    var direct=(fn==='requestCode'||fn==='verifyCode'||fn==='logout'||fn==='quickSignIn'||fn==='mobileSignIn'||fn==='googleSignIn');
+    var direct=(fn==='requestCode'||fn==='verifyCode'||fn==='logout'||fn==='quickSignIn'||fn==='mobileSignIn'||fn==='verifyTotp'||fn==='googleSignIn');
     if(typeof gr[direct?fn:'api']!=='function'){if(!quiet)busyOff();rej(new Error('The server code (Code.gs) is out of date ("'+fn+'"). Paste the new Code.gs, save, then Deploy > Manage deployments > New version.'));return}
     if(direct)gr[fn].apply(gr,a);else gr.api(TOKEN,fn,a);
   });
@@ -728,7 +785,7 @@ $('btnLoadChanges').onclick=async function(){
 $('smFilter').oninput=renderScriptMapTable;
 $('chFilter').oninput=renderChangesTable;
 
-// ===== roles, users, admin =====
+// ===== roles, users, admin, Google Authenticator management =====
 function isFixed(e){e=String(e||'').toLowerCase();return ADMIN_EMAILS.some(function(x){return x.toLowerCase()===e})}
 function modesFor(r){var a=[];if(r.pack)a.push('pack');if(r.scan)a.push('scan');if(r.view)a.push('view');if(r.admin)a.push('admin');return a}
 function roleLabel(r){return r.admin?'Admin':[r.pack&&'Packing',r.scan&&'Scanning',r.view&&'View all'].filter(Boolean).join(', ')}
@@ -737,18 +794,70 @@ function roleUI(){
   $('me').textContent=me.email+(me.designation||me.dept?' \u00B7 '+[me.designation,me.dept].filter(Boolean).join(', '):'')+' ('+roleLabel(role)+')';
   $('goPack').classList.toggle('hide',!role.pack);$('goScan').classList.toggle('hide',!role.scan);$('goView').classList.toggle('hide',!role.view);$('goAdmin').classList.toggle('hide',!role.admin);
   $('uAdmin').disabled=!isFixed(me.email);$('sgSel').value=SIGNIN;$('sgSel').disabled=!isFixed(me.email);
+  $('auth2faSel').value=AUTH2FA;$('auth2faSel').disabled=!isFixed(me.email);
+  $('myTotpBtn').classList.toggle('hide',!isFixed(me.email));
   $('csvBtn').classList.toggle('hide',!role.view);$('recTitle').textContent=role.view?'All bundles':'My entries';
 }
-function setUsers(list){users={};list.forEach(function(r){users[String(r.email).toLowerCase()]={admin:!!r.admin,pack:!!r.pack,scan:!!r.scan,view:!!r.view,dept:r.dept||'',designation:r.designation||'',mobile:r.mobile||''}})}
-async function loadUsers(){try{setUsers(await call('getUsers'));renderUsers()}catch(e){$('uMsg').textContent='\u26A0 '+e.message}}
+function setUsers(list){users={};list.forEach(function(r){users[String(r.email).toLowerCase()]={admin:!!r.admin,pack:!!r.pack,scan:!!r.scan,view:!!r.view,dept:r.dept||'',designation:r.designation||'',mobile:r.mobile||'',totpSecret:r.totpSecret||''}})}
+async function loadUsers(){
+  try{
+    var res=await call('getUsers');
+    if(Array.isArray(res)){setUsers(res)}
+    else{setUsers(res.users||[]);fixedAdminSec=res.fixedSecret||''}
+    renderUsers();
+  }catch(e){$('uMsg').textContent='\u26A0 '+e.message}
+}
 function renderUsers(){
   var ks=Object.keys(users).sort();
   $('uEmpty').classList.toggle('hide',ks.length>0);$('fixedAdmins').textContent=ADMIN_EMAILS.join(', ');
   $('ub').innerHTML=ks.map(function(k){var u=users[k];
     function cb(f){return'<td><input type="checkbox" data-e="'+esc(k)+'" data-k="'+f+'"'+(u[f]?' checked':'')+(f==='admin'&&!isFixed(me.email)?' disabled title="Only the fixed admin can change Admin access"':'')+' style="width:auto"></td>'}
     function tx(f,ph,w){return'<td><input type="text" data-e="'+esc(k)+'" data-t="'+f+'" value="'+esc(u[f]||'')+'" placeholder="'+(ph||'')+'" style="min-width:'+(w||110)+'px"></td>'}
-    return'<tr><td>'+esc(k)+'</td>'+tx('mobile','10-digit',115)+tx('dept','',95)+tx('designation','',115)+cb('admin')+cb('pack')+cb('scan')+cb('view')+'<td><button class="s" data-rm="'+esc(k)+'">Remove</button></td></tr>'}).join('');
+    var totpCell=u.totpSecret
+      ?'<td><span class="tag Scanned">Active</span> <button class="s" data-totp="'+esc(k)+'">QR</button></td>'
+      :'<td><button class="s p" data-totp="'+esc(k)+'">Setup QR</button></td>';
+    return'<tr><td>'+esc(k)+'</td>'+tx('mobile','10-digit',115)+tx('dept','',95)+tx('designation','',115)+totpCell+cb('admin')+cb('pack')+cb('scan')+cb('view')+'<td><button class="s" data-rm="'+esc(k)+'">Remove</button></td></tr>'}).join('');
 }
+
+// Modal for viewing / generating Google Authenticator QR
+var modalTotpEmail='';
+async function openTotpModal(email,forceNew){
+  modalTotpEmail=email;
+  var existingSec=isFixed(email)?fixedAdminSec:(users[email]&&users[email].totpSecret)||'';
+  if(!existingSec || forceNew){
+    try{
+      var r=await call('generateUserTotp',email);
+      existingSec=r.secret;
+      if(isFixed(email))fixedAdminSec=existingSec;
+      else if(users[email])users[email].totpSecret=existingSec;
+      renderUsers();
+    }catch(e){alert(e.message);return}
+  }
+  var uri='otpauth://totp/SVCE%20Bundles:'+encodeURIComponent(email)+'?secret='+existingSec+'&issuer=SVCE%20Bundles';
+  $('tmEmail').textContent=email;
+  $('tmSecret').textContent=existingSec;
+  $('tmQrImg').src=qrImgUrl(uri);
+  $('totpModal').classList.remove('hide');
+}
+$('myTotpBtn').onclick=function(){openTotpModal(me.email,false)};
+$('tmRegen').onclick=function(){
+  if(confirm('Generate a NEW Authenticator key for '+modalTotpEmail+'?\n\nTheir old Google Authenticator code will stop working immediately and they must scan this new QR code.')){
+    openTotpModal(modalTotpEmail,true);
+  }
+};
+$('tmDisable').onclick=async function(){
+  if(!confirm('Disable Google Authenticator 2FA for '+modalTotpEmail+'?'))return;
+  try{
+    await call('clearUserTotp',modalTotpEmail);
+    if(isFixed(modalTotpEmail))fixedAdminSec='';
+    else if(users[modalTotpEmail])users[modalTotpEmail].totpSecret='';
+    renderUsers();
+    $('totpModal').classList.add('hide');
+    $('uMsg').textContent='Google Authenticator disabled for '+modalTotpEmail+'.';
+  }catch(e){alert(e.message)}
+};
+$('tmClose').onclick=function(){$('totpModal').classList.add('hide')};
+
 $('ub').onchange=async function(e){
   var t=e.target,k=t.dataset.e;if(!k||!users[k])return;
   if(t.dataset.t){
@@ -762,7 +871,9 @@ $('ub').onchange=async function(e){
   try{await call('saveUser',k,users[k]);$('uMsg').textContent='Saved \u2713'}catch(err){users[k][t.dataset.k]=prev;t.checked=prev;$('uMsg').textContent='\u26A0 '+err.message}
 };
 $('ub').onclick=async function(e){
-  var b=e.target.closest('button');if(!b||!b.dataset.rm)return;var k=b.dataset.rm;
+  var b=e.target.closest('button');if(!b)return;
+  if(b.dataset.totp){openTotpModal(b.dataset.totp,false);return}
+  if(!b.dataset.rm)return;var k=b.dataset.rm;
   if(users[k]&&users[k].admin&&!isFixed(me.email)){alert('Only the fixed admin can remove an admin.');return}
   if(!confirm('Remove '+k+'?'))return;
   try{await call('deleteUser',k);delete users[k];renderUsers();$('uMsg').textContent='Removed.'}catch(err){$('uMsg').textContent='\u26A0 '+err.message}
@@ -772,7 +883,7 @@ $('uAdd').onclick=async function(){
   var mob=$('uMobile').value.replace(/\D/g,'').slice(-10);
   if(e.indexOf('@')<1){$('uMsg').textContent='Enter a valid e-mail address.';return}
   if(isFixed(e)){$('uMsg').textContent='That address is already a fixed admin.';return}
-  var u={admin:$('uAdmin').checked,pack:$('uPack').checked,scan:$('uScan').checked,view:$('uView').checked,dept:$('uDept').value.trim(),designation:$('uDesig').value.trim(),mobile:mob};
+  var u={admin:$('uAdmin').checked,pack:$('uPack').checked,scan:$('uScan').checked,view:$('uView').checked,dept:$('uDept').value.trim(),designation:$('uDesig').value.trim(),mobile:mob,totpSecret:''};
   if(u.admin&&(!isFixed(me.email)||!confirm('Make '+e+' an ADMIN? Admins can see everything and manage everyone\'s access.'))){$('uMsg').textContent=isFixed(me.email)?'Cancelled.':'Only the fixed admin can make someone an Admin.';return}
   try{await call('saveUser',e,u);users[e]=u;renderUsers();$('uMsg').textContent='Added '+e+'.';$('uEmail').value='';$('uMobile').value='';$('uDept').value='';$('uDesig').value='';['uAdmin','uPack','uScan','uView'].forEach(function(i){$(i).checked=false})}
   catch(err){$('uMsg').textContent='\u26A0 '+err.message}
@@ -825,7 +936,7 @@ $('uImp').onclick=async function(){
     var nu=res.users;ADMIN_EMAILS.forEach(function(a){delete nu[a.toLowerCase()]});
     if(!Object.keys(nu).length){imsg('No people found in the file.');return}
     var repl=$('uRepl').checked,fx=isFixed(me.email);
-    setUsers(await call('getUsers'));
+    await loadUsers();
     if(!fx){
       Object.keys(nu).forEach(function(k){nu[k].admin=!!(users[k]&&users[k].admin)});
       if(repl)Object.keys(users).forEach(function(k){if(users[k].admin&&!nu[k])nu[k]=users[k]});
@@ -839,12 +950,17 @@ $('uImp').onclick=async function(){
 };
 $('uExp').onclick=async function(){
   var ks=Object.keys(users).sort(),yn=function(v){return v?'Yes':''};
-  var A=[['Email','Mobile','Dept','Designation','Admin','Packing','Scanning','View all']].concat(ks.map(function(k){var u=users[k];return[k,u.mobile||'',u.dept||'',u.designation||'',yn(u.admin),yn(u.pack),yn(u.scan),yn(u.view)]}));
+  var A=[['Email','Mobile','Dept','Designation','Google Auth','Admin','Packing','Scanning','View all']].concat(ks.map(function(k){var u=users[k];return[k,u.mobile||'',u.dept||'',u.designation||'',u.totpSecret?'Active':'',yn(u.admin),yn(u.pack),yn(u.scan),yn(u.view)]}));
   try{await loadXlsx();var wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(A),'Users');XLSX.writeFile(wb,'access_list.xlsx')}
   catch(e){
     var out=A.map(function(r){return r.map(function(v){return'"'+String(v).replace(/"/g,'""')+'"'}).join(',')}).join('\n');
     var bl=new Blob(["\ufeff"+out],{type:'text/csv'}),u=URL.createObjectURL(bl),l=document.createElement('a');l.href=u;l.download='access_list.csv';document.body.appendChild(l);l.click();l.remove();
   }
+};
+
+$('auth2faSel').onchange=async function(){
+  var v=this.value,m=$('auth2faMsg');
+  try{AUTH2FA=await call('setAuth2faMode',v);m.textContent='Saved \u2713';m.className='ok'}catch(e){this.value=AUTH2FA;m.textContent=e.message;m.className='warn'}
 };
 
 $('sgSel').onchange=async function(){
@@ -948,6 +1064,7 @@ async function start(){
   try{
     var r=await call('init');
     ADMIN_EMAILS=r.fixed||[];
+    AUTH2FA=r.auth2fa||'optional';
     if(!r.email){
       if(TOKEN){TOKEN='';try{localStorage.removeItem('svceTok')}catch(e){}}
       SIGNIN=r.signin||'email';applyGate();initGoogle();
@@ -962,6 +1079,7 @@ async function start(){
   }catch(e){gate('Could not start: '+e.message)}
 }
 var SIGNIN='email';
+var AUTH2FA='optional';
 function initGoogle(){
   if(!API_URL||!GOOGLE_CLIENT_ID||/PASTE/.test(GOOGLE_CLIENT_ID))return;
   var setup=function(){try{
@@ -970,20 +1088,48 @@ function initGoogle(){
     $('gGoogleBox').classList.remove('hide')}catch(e){}};
   if(window.google&&google.accounts&&google.accounts.id)setup();else loadScript('https://accounts.google.com/gsi/client').then(setup).catch(function(){});
 }
+function handleLoginResult(res){
+  if(res && res.needTotp){
+    pendingTotp={challengeId:res.challengeId,email:res.email};
+    $('emailLoginSec').classList.add('hide');
+    $('mobileLoginSec').classList.add('hide');
+    $('totpLoginSec').classList.remove('hide');
+    $('totpWho').textContent=res.email;
+    $('gTotpCode').value='';
+    if(res.setupSecret && res.otpauthUri){
+      $('totpSetupBox').classList.remove('hide');
+      $('totpSetupKey').textContent=res.setupSecret;
+      $('totpSetupQr').src=qrImgUrl(res.otpauthUri);
+    }else{
+      $('totpSetupBox').classList.add('hide');
+    }
+    gate('2-Step Verification: Enter the 6-digit code from your Google Authenticator app.');
+    $('gTotpCode').focus();
+    return;
+  }
+  if(res && res.token){
+    TOKEN=res.token;try{localStorage.setItem('svceTok',TOKEN)}catch(x){}
+    gate('Signing you in…');$('codeBox').classList.add('hide');start();
+  }
+}
+
 async function onGoogleCred(resp){
   gerr('');
-  try{var q=await call('googleSignIn',resp&&resp.credential);
-    TOKEN=q.token;try{localStorage.setItem('svceTok',TOKEN)}catch(x){}gate('Signing you in…');$('codeBox').classList.add('hide');await start()}
-  catch(err){gerr(err.message)}
+  try{
+    var q=await call('googleSignIn',resp&&resp.credential);
+    handleLoginResult(q);
+  }catch(err){gerr(err.message)}
 }
 function showMobileSec(show){
   gerr('');
+  $('totpLoginSec').classList.add('hide');
   $('emailLoginSec').classList.toggle('hide',show);
   $('mobileLoginSec').classList.toggle('hide',!show);
   if(show)$('gMobile').focus();else $('gMail').focus();
 }
 $('toMobileBtn').onclick=function(){showMobileSec(true)};
 $('toEmailBtn').onclick=function(){showMobileSec(false)};
+$('totpBackBtn').onclick=function(){pendingTotp={challengeId:'',email:''};applyGate()};
 
 function applyGate(){
   showMobileSec(false);
@@ -1005,10 +1151,8 @@ $('gSend').onclick=async function(){
   if(SIGNIN==='email'){
     try{
       var q=await call('quickSignIn',e);
-      if(q&&q.token){
-        TOKEN=q.token;try{localStorage.setItem('svceTok',TOKEN)}catch(x){}
-        gate('Signing you in…');$('codeBox').classList.add('hide');await start();return;
-      }
+      handleLoginResult(q);
+      return;
     }catch(err){
       gerr(err.message);
       return;
@@ -1024,13 +1168,23 @@ $('gMobileBtn').onclick=async function(){
   if(m.length!==10){gerr('Enter your 10-digit registered mobile number.');return}
   try{
     var q=await call('mobileSignIn',m);
-    if(q&&q.token){
-      TOKEN=q.token;try{localStorage.setItem('svceTok',TOKEN)}catch(x){}
-      gate('Mobile verified! Signing you in…');$('codeBox').classList.add('hide');await start();
-    }
+    handleLoginResult(q);
   }catch(err){gerr(err.message)}
 };
 $('gMobile').onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();$('gMobileBtn').click()}};
+
+// Step 2: Google Authenticator 6-digit TOTP verification submit
+$('gTotpVerifyBtn').onclick=async function(){
+  var c=$('gTotpCode').value.trim();gerr('');
+  if(!/^\d{6}$/.test(c)){gerr('Enter the 6-digit code from Google Authenticator.');return}
+  try{
+    var r=await call('verifyTotp',pendingTotp.challengeId,c);
+    pendingTotp={challengeId:'',email:''};
+    $('totpLoginSec').classList.add('hide');
+    handleLoginResult(r);
+  }catch(err){gerr(err.message)}
+};
+$('gTotpCode').onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();$('gTotpVerifyBtn').click()}};
 
 $('gHave').onclick=function(){$('gCodeRow').classList.remove('hide');gerr('Type your e-mail address above, then the 6-digit code.');$('gCode').focus()};
 $('gVerify').onclick=async function(){
