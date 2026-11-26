@@ -136,6 +136,7 @@ th{color:var(--mu);font-weight:600}
   <div id="scanPanel" class="card hide">
     <h2>Scanning &ndash; scan the label to start, then mark scanned when all scripts are checked</h2>
     <p><button class="p" id="sScan">&#128247; Scan label</button> <span class="sub" id="sMsg"></span></p>
+    <p id="sFolderBar" style="margin:6px 0 10px"><button id="sFolderBtn" type="button">&#128194; Scanner folder: <b id="sFolderName">not set</b></button> <button id="sFolderClear" type="button" class="hide">Clear</button> <span class="sub" id="sFolderMsg">Choose the folder your Epson scanner saves to (Chrome / Edge on a PC).</span></p>
     <div id="sCard"></div>
   </div>
 
@@ -659,7 +660,7 @@ async function pickScanFolder(){
   try{
     var h=await window.showDirectoryPicker({mode:'readwrite'});scanDirMem=h;
     try{await idbSet(h)}catch(e){}
-    refreshFolderLbl();vmsg('Scanner folder set to "'+h.name+'". Tap "Check folder now" any time.','ok');
+    refreshFolderLbl();refreshTopFolder();vmsg('Scanner folder set to "'+h.name+'". Tap "Check folder now" any time.','ok');
   }catch(e){if(e&&e.name!=='AbortError')vmsg('Could not open the folder: '+(e.message||e),'warn')}
 }
 
@@ -728,6 +729,22 @@ async function checkFolder(){
       ' '+(names.length-fileHits)+' other file(s) ignored'+(subH?' (looked in the subject folder).':' (subject folder not found - looked in the whole scanner folder).'),left.length?'warn':'ok');
   }catch(e){vmsg('Could not check the folder: '+(e&&e.message||e),'warn')}
 }
+// scanner-folder setting on the Scanning home screen (the same folder is used by every bundle card)
+async function refreshTopFolder(){
+  if(!$('sFolderBar'))return;
+  if(!FOLDER_OK){$('sFolderBtn').classList.add('hide');$('sFolderMsg').textContent='The scanner folder needs Chrome or Edge on a PC.';return}
+  var h=await getScanDir();
+  $('sFolderName').textContent=h?h.name:'not set';$('sFolderClear').classList.toggle('hide',!h);
+  $('sFolderMsg').textContent=h?'Open a bundle: its Exam / Subject folder is created inside this folder.':'Choose the folder your Epson scanner saves to (Chrome / Edge on a PC).';
+}
+$('sFolderBtn').onclick=async function(){
+  try{var h=await window.showDirectoryPicker({mode:'readwrite'});scanDirMem=h;try{await idbSet(h)}catch(e){}refreshTopFolder();refreshFolderLbl()}
+  catch(e){if(e&&e.name!=='AbortError')$('sFolderMsg').textContent='Could not open the folder: '+(e.message||e)}
+};
+$('sFolderClear').onclick=async function(){
+  scanDirMem=null;try{var d=await idbOpen();d.transaction('h','readwrite').objectStore('h').delete('dir')}catch(e){}
+  refreshTopFolder();refreshFolderLbl();
+};
 $('sCard').onchange=function(e){if(e.target.id==='vFiles'){var f=e.target.files;checkFiles(f);e.target.value=''}};
 $('sCard').oninput=function(e){if(e.target.id==='sCnt')e.target.dataset.touched='1';if(e.target.id==='vBr')renderV()};
 $('sCard').onclick=async function(e){
@@ -1201,6 +1218,7 @@ function setMode(m){
   $('modeBox').classList.toggle('hide',!!m);$('packPanel').classList.toggle('hide',m!=='pack');$('scanPanel').classList.toggle('hide',m!=='scan');$('adminPanel').classList.toggle('hide',m!=='admin');$('scFind').classList.toggle('hide',!m||m==='admin');
   $('recCard').classList.toggle('hide',!m||m==='admin');$('swBtn').classList.toggle('hide',!m||n<2);
   $('auditPanel').classList.toggle('hide',!(m==='view'&&role&&role.view));
+  if(m==='scan')refreshTopFolder();
   if(m==='view'&&role&&role.view&&$('scriptMapWrap').classList.contains('hide'))$('btnLoadScripts').click();   // Script Map opens by itself; Changes / User Logs load on demand
   $('modeBadge').textContent=MODENAME[m]||'';
   $('sCard').innerHTML='';smsg('');pmsg('');if(m==='admin'){loadUsers();loadRegCount()}render();
