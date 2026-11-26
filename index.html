@@ -202,7 +202,7 @@ th{color:var(--mu);font-weight:600}
     <div class="tw"><table>
       <thead><tr><th>Bundle</th><th>Date</th><th>Subject</th><th>Branch</th><th>Scripts / Strength</th><th>Status</th><th>Packed by</th><th>Scanned by</th><th></th></tr></thead>
       <tbody id="tb"></tbody></table></div>
-    <p class="sub" id="empty">No bundles recorded yet.</p>
+    <p class="sub" id="empty">No bundles recorded yet. A bundle appears here after it has been packed (Packing mode).</p>
   </div>
 
   <!-- ON-SCREEN AUDIT LOGS IN VIEW ALL MODE -->
@@ -506,10 +506,10 @@ async function findScript(t){
   try{
     var r=await call('scriptFind',t);
     if(!r.found){o.className='warn';o.textContent='Script '+(r.script||t)+' is not in any bundle yet.';return}
-    var det='',n='';
-    try{var fr=await call('findBundles',{bundle:r.bundle});if(fr.length){var x=fr[0];det=' \u2013 '+[x.code,x.subject,x.branch,x.date].filter(Boolean).join(' | ')+' | '+x.status}}catch(e){}
+    var det='',n='',noRec=false;
+    try{var fr=await call('findBundles',{bundle:r.bundle});if(!fr.length)noRec=true;if(fr.length){var x=fr[0];det=' \u2013 '+[x.code,x.subject,x.branch,x.date].filter(Boolean).join(' | ')+' | '+x.status}}catch(e){}
     try{n=' ('+(await call('scriptsOf',r.bundle)).length+' scripts scanned in it)'}catch(e){}
-    o.className='ok';o.innerHTML='Script <b>'+esc(r.script)+'</b> is'+(r.branch?' a <b>'+esc(r.branch)+'</b> script':'')+' in bundle <b>'+esc(r.bundle)+'</b>'+esc(n)+esc(det)+'<br><span class="sub">Added by '+esc(r.packedBy)+(r.packedAt?' on '+esc(fmt(r.packedAt)):'')+'</span>';
+    o.className='ok';o.innerHTML='Script <b>'+esc(r.script)+'</b> is'+(r.branch?' a <b>'+esc(r.branch)+'</b> script':'')+' in bundle <b>'+esc(r.bundle)+'</b>'+esc(n)+esc(det)+'<br><span class="sub">Added by '+esc(r.packedBy)+(r.packedAt?' on '+esc(fmt(r.packedAt)):'')+'</span>'+(noRec?'<br><span class="warn">\u26A0 Bundle '+esc(r.bundle)+' has no packing record (packing was not finished, or the bundle was deleted). Pack it again, or ask the admin to run the tidy-up.</span>':'');
   }catch(e){o.className='warn';o.textContent=e.message}
 }
 $('fsGo').onclick=function(){var v=$('fsIn').value;$('fsIn').value='';findScript(v)};
@@ -548,7 +548,7 @@ function smsg(t){$('sMsg').textContent=t}
 function startScan(id){return saveRec(id,{status:'Scanning'})}
 var SF=[['code','sCode'],['subject','sSubject'],['branch','sBranch'],['reg','sReg'],['date','sDate'],['count','sCountL',1],['strength','sStrength',1],['exam','sExam']];
 function showCard(id){
-  curId=id;var r=rows.find(function(x){return x._id===id});if(!r){$('sCard').innerHTML='';return}
+  lblSrc=null;curId=id;var r=rows.find(function(x){return x._id===id});if(!r){$('sCard').innerHTML='';return}
   var kv=function(a){return'<div class="kv">'+a.map(function(p){return'<div><span>'+p[0]+'</span>'+esc(p[1])+'</div>'}).join('')+'</div>'};
   var who=[['Packed by',(r.packedBy||'')+' · '+fmt(r.packedAt)],['Scanning started by',r.scanStartBy?r.scanStartBy+' · '+fmt(r.scanStartAt):'-']];
   var h='<hr style="border:0;border-top:1px solid var(--bd)"><h2>Bundle '+esc(r.bundle)+' <span class="tag '+esc(r.status)+'">'+esc(r.status)+'</span></h2>';
@@ -572,7 +572,7 @@ function showCard(id){
   $('sCard').innerHTML=h;
   vList=[];if(r.status==='Scanning'){loadV();refreshFolderLbl()}
 }
-var vList=[],vSeq=0;
+var vList=[],vSeq=0,lblSrc=null;
 function vmsg(t,c){var m=$('vMsg');if(m){m.textContent=t;m.className=c||'sub'}}
 function curBundleNo(){var r=rows.find(function(x){return x._id===curId});return r?r.bundle:''}
 function vBranches(){var r=rows.find(function(x){return x._id===curId});return r?String(r.branch||'').split(/\s*(?:,|;|\/|&|\+|\band\b)\s*/i).map(function(x){return x.trim()}).filter(Boolean):[]}
@@ -686,7 +686,7 @@ function subjFolderName(r){
 // Creates <scanner folder>/<exam>/<subject (code)> from the bundle label. Silent when permission is already granted;
 // the button asks for permission once (a browser needs a tap for that).
 async function autoSubjectFolder(interactive){
-  var sp=$('vSubPath'),r=rows.find(function(x){return x._id===curId});if(!sp||!r)return null;
+  var sp=$('vSubPath'),r=rows.find(function(x){return x._id===curId})||lblSrc;if(!sp||!r)return null;
   try{
     var h=await getScanDir();
     if(!h||!h.getDirectoryHandle){sp.textContent='Choose the scanner folder first, then the subject folder is made from this label.';return null}
@@ -738,7 +738,7 @@ async function refreshTopFolder(){
   $('sFolderMsg').textContent=h?'Open a bundle: its Exam / Subject folder is created inside this folder.':'Choose the folder your Epson scanner saves to (Chrome / Edge on a PC).';
 }
 $('sFolderBtn').onclick=async function(){
-  try{var h=await window.showDirectoryPicker({mode:'readwrite'});scanDirMem=h;try{await idbSet(h)}catch(e){}refreshTopFolder();refreshFolderLbl()}
+  try{var h=await window.showDirectoryPicker({mode:'readwrite'});scanDirMem=h;try{await idbSet(h)}catch(e){}refreshTopFolder();refreshFolderLbl();autoSubjectFolder(false)}
   catch(e){if(e&&e.name!=='AbortError')$('sFolderMsg').textContent='Could not open the folder: '+(e.message||e)}
 };
 $('sFolderClear').onclick=async function(){
@@ -751,7 +751,9 @@ $('sCard').onclick=async function(e){
   var rm=e.target.closest('b[data-vi]');
   if(rm){var x=vList[+rm.dataset.vi];if(!x||!confirm('Take script '+x.code+' out of bundle '+curBundleNo()+'?'))return;
     try{await call('scriptRemove',curBundleNo(),x.code,'Scanning');vList.splice(+rm.dataset.vi,1);renderV();vmsg('Removed '+x.code+'.')}catch(err){vmsg(err.message,'warn')}return}
-  var b=e.target.closest('button');if(!b)return;var r=rows.find(function(x){return x._id===curId});if(!r)return;
+  var b=e.target.closest('button');if(!b)return;
+  if(b.dataset.a==='vmkfolder'){autoSubjectFolder(true);return}   // also works for a label whose bundle is not packed yet
+  var r=rows.find(function(x){return x._id===curId});if(!r)return;
   if(b.dataset.a==='vadd'){var iv=$('vIn').value;$('vIn').value='';onVCode(iv);return}
   if(b.dataset.a==='vfiles'){$('vFiles').click();return}
   if(b.dataset.a==='vfolder'){pickScanFolder();return}
@@ -786,7 +788,14 @@ async function onScanLabel(t,f){
   if(!rl.o){smsg('Label '+rl.id+' is not in the label register. Ask the admin to upload the register for this exam.');$('sCard').innerHTML='';return}
   var o=rl.o;
   smsg('Searching…');var m=[];try{m=await call('findBundles',o);mergeRows(m)}catch(err){smsg(err.message);return}
-  if(!m.length){smsg('Not found ('+(o.bundle||o.code)+') - this bundle has not been packed yet.');$('sCard').innerHTML='';return}
+  if(!m.length){
+    smsg('Not found ('+(o.bundle||o.code)+') - this bundle has not been packed yet.');
+    curId='';lblSrc=o;vList=[];
+    $('sCard').innerHTML='<hr style="border:0;border-top:1px solid var(--bd)"><h2>Bundle '+esc(o.bundle||'')+' <span class="tag Packed">not packed yet</span></h2>'+
+      '<div class="kv"><div><span>Exam</span>'+esc(o.exam||'')+'</div><div><span>Subject</span>'+esc((o.code?o.code+' \u2013 ':'')+(o.subject||''))+'</div><div><span>Branch</span>'+esc(o.branch||'')+'</div><div><span>Date</span>'+esc(o.date||'')+'</div></div>'+
+      '<p class="warn">This bundle has not been packed yet, so its scripts cannot be checked here. Pack it first (Packing mode). You can still prepare its scan folder from this label:</p>'+
+      '<div style="margin:8px 0" id="vSubRow"><button class="p" data-a="vmkfolder" type="button">&#128193; Create folder for this subject</button> <span class="sub" id="vSubPath"></span></div>';
+    autoSubjectFolder(false);return}
   if(m.length>1){$('q').value=o.code||'';render();smsg(m.length+' bundles match - open the right one from the list below.');return}
   var r=m[0];
   if(r.status==='Packed'){try{await startScan(r._id)}catch(err){smsg(err.message);return}smsg('Scanning started for '+r.bundle+'. Scan all scripts, then mark as scanned.')}
@@ -1238,7 +1247,7 @@ async function poll(){
     rows=r.rows.map(function(x){x._id=x.id;return x});
     if(keep&&!rows.some(function(x){return x._id===keep._id}))rows.push(keep);
     if(mode&&modesFor(role).indexOf(mode)<0)setMode('');else render();
-  }catch(e){}
+  }catch(e){var st=$('stats');if(st)st.textContent='\u26A0 Could not refresh the bundle list: '+(e&&e.message||e)}
 }
 async function start(){
   if(API_URL&&/PASTE/.test(API_URL)){gate('Not set up yet: put your Apps Script API link in API_URL.');return}
