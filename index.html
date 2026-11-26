@@ -209,7 +209,7 @@ th{color:var(--mu);font-weight:600}
     <h2>Detailed Audit Logs (Script Map, Field Changes &amp; User Logs)</h2>
     <p class="sub">Clicking <b>Export Excel (All)</b> at the top downloads a complete multi-sheet Excel workbook containing <b>Bundles</b>, <b>Script Map</b>, <b>Changes</b>, and <b>User Logs</b>. You can also view them live below:</p>
     <p style="display:flex;gap:8px;flex-wrap:wrap">
-      <button id="btnLoadScripts">Load Script Map (All Booklets)</button>
+      <button id="btnLoadScripts">Reload Script Map (All Booklets)</button>
       <button id="btnLoadChanges">Load Changes Log (Edit History)</button>
       <button id="btnLoadUserLogs">Load User Logs (Sign-ins &amp; Access)</button>
     </p>
@@ -556,6 +556,8 @@ function showCard(id){
       '<div style="border:1px solid var(--bd);border-radius:10px;padding:10px;margin:10px 0"><label>Script check: <b id="vOk">0</b> of <b id="vTot">0</b> verified <span class="sub">(scan every script in this bundle)</span></label>'+
       '<div class="row"><div style="flex:0 0 150px"><label>Branch (for a new script)</label><input id="vBr" list="brList" placeholder="e.g. CSE"></div><input id="vIn" placeholder="Scan or type the script code + Enter"><button data-a="vadd">Add</button><button class="p" data-a="vcam">&#128247; Scan scripts</button></div>'+
       '<div style="margin:8px 0"><button class="p" data-a="vfiles">&#128193; Check the scanned files (Epson folder)</button><input type="file" id="vFiles" multiple class="hide"> <span class="sub">Select the files the scanner saved for this bundle. Only the file names are read; nothing is uploaded.</span></div>'+
+      '<div style="margin:8px 0" id="vFolderRow"><button class="p" data-a="vfolder" type="button">&#128194; Scanner folder: <b id="vFolderName">choose</b></button> <button class="p" data-a="vfolderchk" type="button">&#128260; Check folder now</button> <span class="sub" id="vFolderNote">Chrome / Edge remember this folder, so next time it is one tap. Only file names are read.</span></div>'+
+      '<div style="margin:8px 0" id="vSubRow"><button class="p" data-a="vmkfolder" type="button">&#128193; Create folder for this subject</button> <span class="sub" id="vSubPath"></span></div>'+
       '<div id="vDone" style="margin:6px 0;font-weight:600"></div><div id="vBrPick" style="margin-top:6px"></div><div id="vMsg" class="sub"></div><div id="vList"></div>'+
       '<div class="sub">&#10003; scanned &middot; grey = not scanned yet &middot; + = was not packed in this bundle (added now). Tap &times; to take a script out of the bundle.</div></div>'+
       '<p class="sub">Check these details against the label. If anything is wrong, correct it - both the old and the new value are recorded.</p><div class="grid">'+
@@ -567,7 +569,7 @@ function showCard(id){
     else h+='<p class="ok">Scanned by '+esc(r.scannedBy)+' · '+fmt(r.scannedAt)+' · '+esc(r.scannedCount)+' scripts checked.</p>';
   }
   $('sCard').innerHTML=h;
-  vList=[];if(r.status==='Scanning')loadV();
+  vList=[];if(r.status==='Scanning'){loadV();refreshFolderLbl()}
 }
 var vList=[],vSeq=0;
 function vmsg(t,c){var m=$('vMsg');if(m){m.textContent=t;m.className=c||'sub'}}
@@ -642,6 +644,90 @@ async function checkFiles(files){
     }else vmsg(msg,left.length?'warn':'ok');
   }catch(e){vmsg(e.message,'warn')}
 }
+// ===== remembered scanner folder (Chrome / Edge): one tap re-checks the bundle against the folder =====
+var scanDirMem=null,FOLDER_OK=typeof window.showDirectoryPicker==='function';
+function idbOpen(){return new Promise(function(res,rej){var q=indexedDB.open('svceScan',1);q.onupgradeneeded=function(){q.result.createObjectStore('h')};q.onsuccess=function(){res(q.result)};q.onerror=function(){rej(q.error)}})}
+async function idbSet(v){var d=await idbOpen();return new Promise(function(res,rej){var t=d.transaction('h','readwrite');t.objectStore('h').put(v,'dir');t.oncomplete=res;t.onerror=function(){rej(t.error)}})}
+async function idbGet(){var d=await idbOpen();return new Promise(function(res,rej){var q=d.transaction('h').objectStore('h').get('dir');q.onsuccess=function(){res(q.result||null)};q.onerror=function(){rej(q.error)}})}
+async function getScanDir(){if(scanDirMem)return scanDirMem;try{scanDirMem=await idbGet()}catch(e){}return scanDirMem}
+async function refreshFolderLbl(){
+  var nm=$('vFolderName');if(!nm)return;
+  if(!FOLDER_OK){$('vFolderRow').querySelectorAll('button').forEach(function(x){x.classList.add('hide')});$('vSubRow').classList.add('hide');$('vFolderNote').textContent='Folder memory needs Chrome or Edge on a PC. Use the button above to choose the scanned files.';return}
+  var h=await getScanDir();nm.textContent=h?h.name:'choose';autoSubjectFolder(false);
+}
+async function pickScanFolder(){
+  try{
+    var h=await window.showDirectoryPicker({mode:'readwrite'});scanDirMem=h;
+    try{await idbSet(h)}catch(e){}
+    refreshFolderLbl();vmsg('Scanner folder set to "'+h.name+'". Tap "Check folder now" any time.','ok');
+  }catch(e){if(e&&e.name!=='AbortError')vmsg('Could not open the folder: '+(e.message||e),'warn')}
+}
+
+// ===== folder names from the label: <Exam short name> / <Subject (code)> =====
+function cleanFolder(x){return String(x||'').replace(/[\\\/:*?"<>|]+/g,' ').replace(/\s+/g,' ').replace(/[. ]+$/,'').trim().slice(0,120)}
+function examFolderName(exam,reg){
+  var e=String(exam||'').replace(/\s+/g,' ').trim();if(!e)return 'Exam';
+  var rg=String(reg||'').trim().toUpperCase().replace(/\s+/g,'')||((e.match(/\bR\s?\d{2}\b/i)||[''])[0]).replace(/\s/g,'').toUpperCase();
+  var my=e.match(/\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)(?:\s*[\/&,-]\s*(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?))?\s*[-–,]?\s*(\d{4})/i);
+  var mn=function(x){return x.charAt(0).toUpperCase()+x.slice(1,3).toLowerCase()},mon=my?mn(my[1])+(my[2]?'-'+mn(my[2]):'')+'-'+my[3]:'';
+  var type=/supplement|supply/i.test(e)?'Supply':/regular/i.test(e)?'Regular':/improvement/i.test(e)?'Improvement':'';
+  var head=e.split(/\(\s*R\s?\d{2}\s*\)|\b(?:Regular|Supplementary|Supply|Improvement)\b/i)[0].replace(/\bSemester\b/ig,'Sem').replace(/\bExaminations?\b/ig,'').replace(/\s+/g,' ').trim();
+  if(!head||!rg||!mon)return cleanFolder(e);
+  return cleanFolder(head+(type?' '+type:'')+' - '+rg+'-'+mon);
+}
+function subjFolderName(r){
+  var code=String(r.code||'').trim(),t=String(r.subject||'');
+  if(code)t=t.split(code).join('');
+  t=t.replace(/\(\s*\)/g,'').replace(/[\s(]+$/,'').replace(/\s+/g,' ').trim();
+  return cleanFolder(t+(code?' ('+code+')':''))||'Subject';
+}
+
+// Creates <scanner folder>/<exam>/<subject (code)> from the bundle label. Silent when permission is already granted;
+// the button asks for permission once (a browser needs a tap for that).
+async function autoSubjectFolder(interactive){
+  var sp=$('vSubPath'),r=rows.find(function(x){return x._id===curId});if(!sp||!r)return null;
+  try{
+    var h=await getScanDir();
+    if(!h||!h.getDirectoryHandle){sp.textContent='Choose the scanner folder first, then the subject folder is made from this label.';return null}
+    var en=examFolderName(r.exam,r.reg),sn=subjFolderName(r);
+    var perm=h.queryPermission?await h.queryPermission({mode:'readwrite'}):'granted';
+    if(perm!=='granted'){
+      if(!interactive){sp.textContent='Will be created: '+en+' / '+sn+' (tap the button once to allow).';return null}
+      perm=await h.requestPermission({mode:'readwrite'});
+      if(perm!=='granted'){sp.textContent='Permission to create folders was not given.';return null}
+    }
+    var ex=await h.getDirectoryHandle(en,{create:true}),sub=await ex.getDirectoryHandle(sn,{create:true});
+    sp.textContent='✓ Save scans in: '+h.name+' \\ '+ex.name+' \\ '+sub.name;
+    return sub;
+  }catch(e){sp.textContent='Could not create the folder: '+(e&&e.message||e);return null}
+}
+async function folderNames(h,depth){
+  var out=[];
+  for await(var en of h.values()){
+    if(en.kind==='file')out.push(en.name);
+    else if(depth>0&&out.length<20000){try{out=out.concat(await folderNames(en,depth-1))}catch(e){}}
+  }
+  return out;
+}
+async function checkFolder(){
+  var h=await getScanDir();if(!h){await pickScanFolder();h=await getScanDir();if(!h)return}
+  try{
+    if(h.queryPermission&&(await h.queryPermission({mode:'read'}))!=='granted'&&(await h.requestPermission({mode:'read'}))!=='granted'){vmsg('Permission to read the folder was not given.','warn');return}
+    if(!vList.length){vmsg('No booklet list was saved at packing for this bundle, so there is nothing to compare. Use "Check the scanned files" above to record from files.','warn');return}
+    vmsg('Reading folder "'+h.name+'"...');
+    var rc=rows.find(function(x){return x._id===curId}),subH=null;
+    try{if(rc)subH=await (await h.getDirectoryHandle(examFolderName(rc.exam,rc.reg))).getDirectoryHandle(subjFolderName(rc))}catch(e){}
+    var names=(await folderNames(subH||h,subH?2:3)).filter(function(n){return!/^(thumbs\.db|desktop\.ini)$/i.test(n)});
+    var hits=[],fileHits=0;names.forEach(function(n){var m=matchFile(n);if(m.code){fileHits++;if(hits.indexOf(m.code)<0)hits.push(m.code)}});
+    if(!hits.length){vmsg('None of the '+names.length+' files in "'+h.name+'" match this bundle\'s scripts. Check the folder, or the file names.','warn');return}
+    var r=await call('scriptsVerifyMany',curBundleNo(),hits,$('vBr').value.trim(),false);
+    await loadV();
+    var left=vList.filter(function(x){return!x.verified}).map(function(x){return x.code});
+    vmsg(r.ok.length+' newly matched'+(r.again.length?', '+r.again.length+' already ticked':'')+' ('+fileHits+' file(s) matched). '+
+      (left.length?left.length+' still missing: '+left.slice(0,10).join(', ')+(left.length>10?' ...':''):'None missing - every packed script has a scanned file.')+
+      ' '+(names.length-fileHits)+' other file(s) ignored'+(subH?' (looked in the subject folder).':' (subject folder not found - looked in the whole scanner folder).'),left.length?'warn':'ok');
+  }catch(e){vmsg('Could not check the folder: '+(e&&e.message||e),'warn')}
+}
 $('sCard').onchange=function(e){if(e.target.id==='vFiles'){var f=e.target.files;checkFiles(f);e.target.value=''}};
 $('sCard').oninput=function(e){if(e.target.id==='sCnt')e.target.dataset.touched='1';if(e.target.id==='vBr')renderV()};
 $('sCard').onclick=async function(e){
@@ -651,6 +737,9 @@ $('sCard').onclick=async function(e){
   var b=e.target.closest('button');if(!b)return;var r=rows.find(function(x){return x._id===curId});if(!r)return;
   if(b.dataset.a==='vadd'){var iv=$('vIn').value;$('vIn').value='';onVCode(iv);return}
   if(b.dataset.a==='vfiles'){$('vFiles').click();return}
+  if(b.dataset.a==='vfolder'){pickScanFolder();return}
+  if(b.dataset.a==='vfolderchk'){checkFolder();return}
+  if(b.dataset.a==='vmkfolder'){autoSubjectFolder(true);return}
   if(b.dataset.a==='vcam'){openScan(onVCode,true,'vBr');return}
   if(b.dataset.a==='vbr'){$('vBr').value=b.dataset.br;renderV();$('vIn').focus();return}
   if(b.dataset.a==='start'){try{await startScan(curId)}catch(err){smsg(err.message);return}smsg('Scanning started for '+r.bundle);showCard(curId)}
@@ -659,16 +748,19 @@ $('sCard').onclick=async function(e){
     var now={};SF.forEach(function(a){var v=$(a[1]).value.trim();now[a[0]]=a[2]?(v===''?'':parseInt(v,10)):v});
     if(now.date){var dd=toDMY(now.date);if(dd)now.date=dd}
     var ch=diff(r,now,SF.map(function(a){return a[0]}));
-    var miss=vList.filter(function(x){return!x.verified}).map(function(x){return x.code}),addd=vList.filter(function(x){return x.added}).map(function(x){return x.code});
-    if(miss.length&&!confirm(miss.length+' script(s) in this bundle were not scanned:\n'+miss.slice(0,12).join(', ')+(miss.length>12?' \u2026':'')+'\n\nMark as scanned anyway? They will be recorded as missing. (Tap \u00D7 on a script to take it out of the bundle instead.)'))return;
+    var missReason='',miss=vList.filter(function(x){return!x.verified}).map(function(x){return x.code}),addd=vList.filter(function(x){return x.added}).map(function(x){return x.code});
+    if(miss.length){
+      missReason=(prompt(miss.length+' script(s) in this bundle were NOT scanned:\n'+miss.slice(0,12).join(', ')+(miss.length>12?' \u2026':'')+'\n\nTo mark this bundle as Scanned you must type the reason (e.g. "booklet absent - returned to dept").\nOr press Cancel, then scan them or tap \u00D7 on a script to take it out of the bundle.')||'').trim();
+      if(missReason.length<3){smsg('Not marked as Scanned: '+miss.length+' script(s) are still missing. Scan them, remove them, or give a reason.');return}
+    }
     if(n!==now.count&&!confirm('You checked '+n+' scripts but the label says '+now.count+'. Mark as scanned anyway?'))return;
-    var patch={status:'Scanned',scannedBy:me.email,scannedAt:Date.now(),scannedCount:n,scanRemarks:$('sRem').value.trim()};
-    var se=ch.map(fmtCh);if(miss.length)se.push('Scripts missing: '+miss.join(', '));if(addd.length)se.push('Scripts added at scanning: '+addd.join(', '));
+    var patch={status:'Scanned',scannedBy:me.email,scannedAt:Date.now(),scannedCount:n,scanRemarks:($('sRem').value.trim()+(missReason?(($('sRem').value.trim()?' | ':'')+'Missing '+miss.length+' script(s): '+missReason):'')).trim()};
+    var se=ch.map(fmtCh);if(miss.length)se.push('Scripts missing: '+miss.join(', ')+' (reason: '+missReason+')');if(addd.length)se.push('Scripts added at scanning: '+addd.join(', '));
     if(ch.length)Object.assign(patch,now);
     if(se.length)patch.scanEdits=(r.scanEdits?r.scanEdits+' | ':'')+se.join(' | ');
     try{await saveRec(curId,patch)}catch(err){smsg(err.message);return}
     if(ch.length)logChanges('Scanning',r,ch,'Packed entry');
-    if(miss.length)logChanges('Scanning',r,[{name:'Scripts missing',from:'in packed list',to:miss.join(', ')}],'Script check');
+    if(miss.length)logChanges('Scanning',r,[{name:'Scripts missing',from:'in packed list',to:miss.join(', ')}],'Script check - reason: '+missReason);
     smsg('Bundle '+r.bundle+' marked as Scanned.'+(ch.length?' '+ch.length+' correction(s) recorded.':''));showCard(curId);
   }
 };
@@ -1109,6 +1201,7 @@ function setMode(m){
   $('modeBox').classList.toggle('hide',!!m);$('packPanel').classList.toggle('hide',m!=='pack');$('scanPanel').classList.toggle('hide',m!=='scan');$('adminPanel').classList.toggle('hide',m!=='admin');$('scFind').classList.toggle('hide',!m||m==='admin');
   $('recCard').classList.toggle('hide',!m||m==='admin');$('swBtn').classList.toggle('hide',!m||n<2);
   $('auditPanel').classList.toggle('hide',!(m==='view'&&role&&role.view));
+  if(m==='view'&&role&&role.view&&$('scriptMapWrap').classList.contains('hide'))$('btnLoadScripts').click();   // Script Map opens by itself; Changes / User Logs load on demand
   $('modeBadge').textContent=MODENAME[m]||'';
   $('sCard').innerHTML='';smsg('');pmsg('');if(m==='admin'){loadUsers();loadRegCount()}render();
   if(m!=='view')$('lblInfo').classList.add('hide');
